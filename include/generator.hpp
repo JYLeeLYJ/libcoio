@@ -4,11 +4,11 @@
 #include <coroutine>
 #include <type_traits>
 #include <exception>
-#include <concepts>
 
 namespace coio{
 
     struct non_copyable{
+        non_copyable() noexcept = default;
         non_copyable(const non_copyable&) = delete;
         non_copyable & operator=(const non_copyable &) = delete;
     };
@@ -17,6 +17,8 @@ namespace coio{
     class generator:private non_copyable{
     public:
         class promise;
+        class iterator;
+
         using value_type    = std::remove_reference_t<T>;
         using reference_type= std::conditional_t<std::is_reference_v<T>, T , T&>;
         using promise_type = promise;
@@ -32,14 +34,18 @@ namespace coio{
                 return std::suspend_always{};
             }
 
-            template<std::same_as<value_type> Value>
-            std::suspend_always yield_value(Value && value) noexcept{
+            constexpr auto yield_value(value_type & value) noexcept{
                 m_value_ptr = std::addressof(value);
-                return {};
+                return std::suspend_always{};
+            }
+
+            constexpr auto yield_value(value_type && value) noexcept {
+                m_value_ptr = std::addressof(value);
+                return std::suspend_always{};
             }
 
             generator<T> get_return_object() noexcept{
-                return generator<T>{ std::coroutine_handle<promise<T>>::from_promise(*this)};
+                return generator<T>{ std::coroutine_handle<promise>::from_promise(*this)};
             }
             
             void return_void(){}
@@ -48,9 +54,10 @@ namespace coio{
             template<class U>
             std::suspend_never await_transform(U && value) = delete;
 
-        public:
-            reference_type value() const noexcept{
-                return static_cast<reference_type>(*m_value_ptr);
+        private:
+            friend class iterator;
+            value_type * get_if() const noexcept{
+                return m_value_ptr;
             }
         public:
             void unhandled_exception() noexcept {
@@ -70,40 +77,51 @@ namespace coio{
 
         class iterator:private non_copyable{
         public:
-            iterator() noexcept = default;
-
+            explicit iterator() noexcept = default;
             explicit iterator(std::coroutine_handle<promise> handle) noexcept
             :m_handle(handle)
             {}
 
-            bool operator == (sential s){
+            explicit iterator(iterator && it) noexcept
+            :m_handle(it.m_handle){
+                it.m_handle = nullptr;
+            }
+
+            iterator & operator= (iterator &&it) noexcept{
+                m_handle = it.m_handle;
+                it.m_handle = nullptr;
+            }
+
+            bool operator == (sential s) const noexcept{
                 return !m_handle || m_handle.done();
             }
             void operator ++(int) {(void)++(*this);}
 
             iterator& operator++(){
                 m_handle.resume();
-                if(m_handle.done())
                 m_handle.promise().try_rethrow();
                 return *this;
             }
 
-            reference_type & operator*() const noexcept{
-                return m_handle.promise().value();
+            reference_type operator*() const noexcept{
+                return static_cast<reference_type>(*operator->());
             }
 
             value_type * operator->() const noexcept{
-                return std::addressof(operator*());
+                if(!m_handle) [[unlikely]] std::terminate();
+                return m_handle.promise().get_if();
             }
 
         private:
             std::coroutine_handle<promise> m_handle;
         };
 
-    public:
+    private:
         explicit generator(std::coroutine_handle<promise_type> handle) noexcept
         :m_handle(handle)
         {}
+
+    public:
 
         generator(generator && other) noexcept
         :m_handle(other.m_handle){
@@ -111,15 +129,13 @@ namespace coio{
         }
 
         ~generator(){
-            if(m_handle) m_handle.destory();
+            if(m_handle) m_handle.destroy();
         }
 
         iterator begin() &{
-            if(m_handle){
-                m_handle.resume();
-                if(m_handle.done())
-                m_handle.promise().try_rethrow();
-            }
+            if(!m_handle) [[unlikely]] std::terminate();
+            m_handle.resume();
+            m_handle.promise().try_rethrow();
             return iterator{m_handle};
         }
 
