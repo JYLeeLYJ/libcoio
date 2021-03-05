@@ -5,7 +5,8 @@
 using coio::generator;
 using namespace std::literals;
 
-//reference cppcoro tests cases
+//reference cppcoro tests cases : 
+//https://github.com/lewissbaker/cppcoro/blob/master/test/generator_tests.cpp
 
 TEST(test_generator , test_value_type){
     auto g = []() -> generator<float> {
@@ -57,12 +58,52 @@ TEST(test_generator , test_const_type){
     ASSERT_EQ(count , 30);
 }
 
+namespace {
+    template<std::invocable<> F>
+    struct on_exit_t{
+        F f;
+        on_exit_t(F _f) : f(std::forward<F>(f)){};
+        ~on_exit_t() noexcept(noexcept(f())){ f();}
+    };
+}
+
+TEST(test_generator , test_lifetime){
+    bool destructed = false;
+	bool completed = false;
+    
+	auto f = [&]() -> generator<int>{
+        struct OnExit{
+            bool & ref_val;
+            OnExit(bool & value) : ref_val(value){};
+            ~OnExit(){ref_val = true;};
+        };
+        auto onexit = OnExit{destructed};
+        // got GCC10.2 internal bugs
+        // auto onexit = on_exit_t{[&]{destructed = true;}};
+		co_yield 1;
+		co_yield 2;
+		completed = true;
+	};
+
+	{
+		auto g = f();
+		auto it = g.begin();
+		auto itEnd = g.end();
+		// CHECK(it != itEnd);
+        ASSERT_NE(it , itEnd);
+		ASSERT_EQ(*it , 1u);
+		ASSERT_FALSE(destructed);
+	}
+
+    ASSERT_FALSE(completed);
+	ASSERT_TRUE(destructed);
+}
+
 TEST(test_generator , test_generator_execute_flow){
     bool reachedA = false;
 	bool reachedB = false;
 	bool reachedC = false;
-	auto f = [&]() -> generator<int>
-	{
+	auto f = [&]() -> generator<int>{
 		reachedA = true;
 		co_yield 1;
 		reachedB = true;
@@ -105,4 +146,4 @@ TEST(test_generator , test_generator_throws){
     ASSERT_EQ(it , g2.end());
 }
 
-//TODO: test fmap , and destory
+//TODO: test fmap 

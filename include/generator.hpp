@@ -103,10 +103,12 @@ namespace coio{
                 return *this;
             }
 
+            //unsafe unwrap
             reference_type operator*() const noexcept{
                 return static_cast<reference_type>(*operator->());
             }
 
+            //unsafe unwrap
             value_type * operator->() const noexcept{
                 if(!m_handle) [[unlikely]] std::terminate();
                 return m_handle.promise().get_if();
