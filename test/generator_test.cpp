@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include <concepts>
 #include <string>
 #include "generator.hpp"
 
@@ -89,7 +90,6 @@ TEST(test_generator , test_lifetime){
 		auto g = f();
 		auto it = g.begin();
 		auto itEnd = g.end();
-		// CHECK(it != itEnd);
         ASSERT_NE(it , itEnd);
 		ASSERT_EQ(*it , 1u);
 		ASSERT_FALSE(destructed);

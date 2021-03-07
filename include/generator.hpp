@@ -4,14 +4,9 @@
 #include <coroutine>
 #include <type_traits>
 #include <exception>
+#include "common/non_copyable.hpp"
 
 namespace coio{
-
-    struct non_copyable{
-        non_copyable() noexcept = default;
-        non_copyable(const non_copyable&) = delete;
-        non_copyable & operator=(const non_copyable &) = delete;
-    };
 
     template<class T>
     class generator:private non_copyable{
