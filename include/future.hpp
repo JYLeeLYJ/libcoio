@@ -154,7 +154,6 @@ namespace coio{
         std::exception_ptr m_exception;
     };
 
-
     template<concepts::future_value T>
     class future : non_copyable{
     public:
@@ -230,6 +229,14 @@ namespace coio{
                 void await_resume() const noexcept{}
             };
             return awaiter{};
+        }
+
+        decltype(auto) poll_wait() {
+            assert(m_handle);
+            m_handle.resume();
+            while(!is_ready()){
+            }
+            return m_handle.promise().result();
         }
 
     private:
