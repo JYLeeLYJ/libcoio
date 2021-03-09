@@ -48,14 +48,23 @@ namespace coio{
         }
 
     private:
-        std::atomic<bool> m_state;
+        std::atomic<bool> m_state{false};
         std::coroutine_handle<> m_continuation;
     };
 
+    namespace concepts{
+        
     template<class T>
+    concept future_value =
+        concepts::value_type<T> || 
+        concepts::void_type<T> ||
+        concepts::lvalue_reference<T>;
+    }
+
+    template<concepts::future_value T>
     class future;
 
-    template<coio::concepts::value_type T>
+    template<class T>
     class future_promise : public future_promise_base{
     public:
         void unhandled_exception(){
@@ -63,14 +72,12 @@ namespace coio{
         }
 
         template<std::convertible_to<T> Value>
-        void return_value(Value && v) 
-        noexcept(m_result.emplace<T>(std::forward<Value>(v))){
-            m_result.emplace<T>(std::forward<Value>(v));
+        void return_value(Value && v)
+        noexcept(std::is_nothrow_convertible_v<Value&& , T>){
+            m_result = T{std::forward<Value>(v)};
         }
 
-        future<T> get_return_object() noexcept{
-            return future<T>{std::coroutine_handle<future_promise<T>>::from_promise(*this)};
-        }
+        future<T> get_return_object() noexcept;
 
     public:
         T & result() & {
@@ -92,28 +99,26 @@ namespace coio{
 
         T & get(){
             if(std::holds_alternative<std::exception_ptr>(m_result))
-                std::rethrow_exception(*std::get_if<std::exception_ptr>(m_result));
+                std::rethrow_exception(*std::get_if<std::exception_ptr>(&m_result));
             assert(has_value());
-            return std::get_if<T>(m_result);
+            return *std::get_if<T>(&m_result);
         }
     private:
         std::variant<std::monostate ,T , std::exception_ptr> m_result{};
     };
 
-    template<coio::concepts::void_type T>
-    class future_promise : public future_promise_base{
+    template<>
+    class future_promise<void> : public future_promise_base{
     public:
         future_promise() noexcept = default;
 
-        future<void> get_return_object() noexcept{
-            return future<void>{std::coroutine_handle<future_promise<void>>::from_promise(*this)};
-        }
+        future<void> get_return_object() noexcept;
 
         void return_void() noexcept{}
 
         void result() {
             if(m_exception) [[unlikely]]
-                std::rethrow_exception();
+                std::rethrow_exception(m_exception);
         }
 
         void unhandled_exception() noexcept{
@@ -123,14 +128,12 @@ namespace coio{
         std::exception_ptr m_exception{};
     };
 
-    template<coio::concepts::lvalue_reference T>
-    class future_promise : public future_pormise_base{
+    template<class T>
+    class future_promise<T &> : public future_promise_base{
         using value_type = std::remove_reference_t<T>;
     public:
         future_promise() noexcept = default;
-        future<T> get_return_object() noexcept{
-            return future<T>{std::coroutine_handle<future_promise<T>>::from_primise(*this)};
-        }
+        future<T&> get_return_object() noexcept;
 
         void unhandle_exception() noexcept{
             m_exception = std::current_exception();
@@ -142,7 +145,7 @@ namespace coio{
 
         value_type & result(){
             if(m_exception)[[unlikely]] 
-                std::rethrow_exception();
+                std::rethrow_exception(m_exception);
             assert(m_value_ptr);
             return *m_value_ptr;
         }
@@ -151,14 +154,6 @@ namespace coio{
         std::exception_ptr m_exception;
     };
 
-    namespace concepts{
-
-        template<class T>
-        concept future_value = 
-            coio::concepts::value_type<T> ||
-            coio::concepts::void_type<T> ||
-            coio::concepts::lvalue_reference<T> ;
-    }
 
     template<concepts::future_value T>
     class future : non_copyable{
@@ -209,11 +204,11 @@ namespace coio{
             using basic_awaiter::basic_awaiter;
 
             decltype(auto) await_resume(){
-                assert(m_handle);
+                assert(this->m_handle);
                 if constexpr (use_rvalue)
-                    return std::move(m_handle.promise()).result();
+                    return std::move(this->m_handle.promise()).result();
                 else 
-                    return m_handle.promise().result();
+                    return this->m_handle.promise().result();
             }
         };
 
@@ -222,7 +217,7 @@ namespace coio{
         }
 
         auto operator co_await() const & noexcept {
-            return awaiter<false>{m_handle}
+            return awaiter<false>{m_handle};
         }
     public:
         bool is_ready() const noexcept{
@@ -240,6 +235,20 @@ namespace coio{
     private:
         std::coroutine_handle<promise_type> m_handle;
     };
+
+    template<class T>
+    future<T> future_promise<T>::get_return_object() noexcept{
+        return future<T>{std::coroutine_handle<future_promise<T>>::from_promise(*this)};
+    }
+
+    inline future<void> future_promise<void>::get_return_object() noexcept{
+        return future<void>{std::coroutine_handle<future_promise<void>>::from_promise(*this)};
+    }
+
+    template<class T>
+    future<T&> future_promise<T&>::get_return_object() noexcept{
+        return future<T&>{std::coroutine_handle<future_promise<T&>>::from_promise(*this)};
+    }
 
 }
 

@@ -21,8 +21,7 @@ namespace coio{
         concept lvalue_reference = reference_type<T> && !rvalue_reference<T>;
 
         template<class T>
-        concept value_type = !void_type<T> && !reference_type<T> && !function_type<T>;
-
+        concept value_type = !std::is_void_v<T> && !reference_type<T> && !function_type<T>;
     }
 }
 
