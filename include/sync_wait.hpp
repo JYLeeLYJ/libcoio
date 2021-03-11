@@ -17,7 +17,7 @@ details::sync_wait_wrapper<void> make_sync_wait(F && f) {
 }
 
 template<concepts::awaitable F>
-auto sync_wait(F && f){
+decltype(auto) sync_wait(F && f){
     auto task = make_sync_wait(std::forward<F>(f));
     return task.wait();
 }

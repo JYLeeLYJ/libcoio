@@ -74,7 +74,7 @@ namespace coio{
         template<std::convertible_to<T> Value>
         void return_value(Value && v)
         noexcept(std::is_nothrow_convertible_v<Value&& , T>){
-            m_result = T{std::forward<Value>(v)};
+            m_result.template emplace<T>(std::forward<Value>(v));
         }
 
         auto get_return_object() noexcept{
