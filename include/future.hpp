@@ -7,8 +7,8 @@
 #include <concepts>
 #include <variant>
 #include <atomic>
+#include <cassert>
 
-#include <assert.h>
 #include "common/non_copyable.hpp"
 #include "common/overloaded.hpp"
 #include "common/type_concepts.hpp"
@@ -77,15 +77,16 @@ namespace coio{
             m_result = T{std::forward<Value>(v)};
         }
 
-        future<T> get_return_object() noexcept;
+        auto get_return_object() noexcept{
+            return std::coroutine_handle<future_promise>::from_promise(*this);
+        }
 
     public:
         T & result() & {
             return get();
         }
 
-        T result() && 
-        requires std::is_arithmetic_v<T> || std::is_pointer_v<T>{
+        T result() && requires std::is_scalar_v<T>{
             return get();
         }
 
@@ -112,7 +113,9 @@ namespace coio{
     public:
         future_promise() noexcept = default;
 
-        future<void> get_return_object() noexcept;
+        auto get_return_object() noexcept{
+            return std::coroutine_handle<future_promise>::from_promise(*this);
+        }
 
         void return_void() noexcept{}
 
@@ -133,7 +136,9 @@ namespace coio{
         using value_type = std::remove_reference_t<T>;
     public:
         future_promise() noexcept = default;
-        future<T&> get_return_object() noexcept;
+        auto get_return_object() noexcept{
+            return std::coroutine_handle<future_promise>::from_promise(*this);
+        }
 
         void unhandle_exception() noexcept{
             m_exception = std::current_exception();
@@ -218,45 +223,24 @@ namespace coio{
         auto operator co_await() const & noexcept {
             return awaiter<false>{m_handle};
         }
-    public:
+
+    protected:
+
         bool is_ready() const noexcept{
             return !m_handle || m_handle.done();
         }
 
-        auto when_ready() const noexcept{
-            struct awaiter : basic_awaiter{
-                using basic_awaiter :: basic_awaiter;
-                void await_resume() const noexcept{}
+        auto await_ready() const noexcept{
+            struct awaiter:basic_awaiter{
+                using basic_awaiter::basic_awaiter;
+                void await_resume() noexcept {}
             };
-            return awaiter{};
-        }
-
-        decltype(auto) poll_wait() {
-            assert(m_handle);
-            m_handle.resume();
-            while(!is_ready()){
-            }
-            return m_handle.promise().result();
+            return awaiter{m_handle};
         }
 
     private:
         std::coroutine_handle<promise_type> m_handle;
     };
-
-    template<class T>
-    future<T> future_promise<T>::get_return_object() noexcept{
-        return future<T>{std::coroutine_handle<future_promise<T>>::from_promise(*this)};
-    }
-
-    inline future<void> future_promise<void>::get_return_object() noexcept{
-        return future<void>{std::coroutine_handle<future_promise<void>>::from_promise(*this)};
-    }
-
-    template<class T>
-    future<T&> future_promise<T&>::get_return_object() noexcept{
-        return future<T&>{std::coroutine_handle<future_promise<T&>>::from_promise(*this)};
-    }
-
 }
 
 #endif

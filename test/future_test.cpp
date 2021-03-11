@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 #include "future.hpp"
+#include "sync_wait.hpp"
 
 using coio::future;
 
@@ -10,16 +11,14 @@ TEST(test_future , test_start){
         co_return;
     };
 
-    auto assert_false = [&]{ASSERT_FALSE(start);};
-    auto assert_true = [&]{ASSERT_TRUE(start);};
-
     //start until await 
-    // func1.poll_wait();
-    [&]()->future<void>{
+    auto f = [&]()->future<int>{
         auto t = func1();
-        assert_false();
+        EXPECT_FALSE(start);
         co_await t;
-        assert_true();
-    }().poll_wait();
-
+        EXPECT_TRUE(start);
+        co_return 114514;
+    }();
+    // EXPECT_EQ(f.poll_wait() ,114514);
+    EXPECT_EQ(coio::sync_wait(f) , 114514);
 }
