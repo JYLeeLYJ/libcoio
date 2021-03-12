@@ -146,4 +146,41 @@ TEST(test_generator , test_generator_throws){
     ASSERT_EQ(it , g2.end());
 }
 
+namespace {
+
+struct node{
+    int value;
+    node * left{};
+    node * right{};
+};
+auto post_order_traverse(node * root) -> generator<int>{
+    if(!root) co_return;
+    if(root->left)
+        for(int n : post_order_traverse(root->left))
+            co_yield n;
+    if(root->right)
+        for(int n : post_order_traverse(root->right))
+            co_yield n;
+    co_yield root->value;
+}
+
+}
+
+TEST(test_generator , test_example){
+    //tree traiverse
+
+    node ll{.value = 1};
+    node lr{.value = 2};
+    node l{.value = 3 , .left = &ll , .right = &lr};
+    node rl{.value = 4 };
+    node rr{.value = 5};
+    node r{.value = 6 , .left = &rl , .right = &rr};
+    node root{.value = 7 , .left = &l , .right = &r};
+
+    for(int i = 1 ; auto n : post_order_traverse(&root)){
+        ASSERT_EQ(i ,n );
+        ++i;
+    }
+
+}
 //TODO: test fmap 

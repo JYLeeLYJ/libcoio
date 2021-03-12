@@ -4,6 +4,7 @@
 #include <coroutine>
 #include <concepts>
 #include <type_traits>
+#include <utility>
 
 namespace coio{
 
@@ -31,13 +32,6 @@ namespace coio{
                 std::declval<T::promise_type>().await_transform();
             };
 
-            template<await_transformable T>
-            struct transform_result{
-                using type = std::remove_reference_t<decltype(
-                    std::declval<T::promise_type>().await_transform()
-                )>;
-            };
-
         }
 
         template<class T>
@@ -60,18 +54,26 @@ namespace coio{
     }
 
     template<concepts::awaiter T>
-    auto get_awaiter(T && t) -> std::remove_reference_t<T>;
+    decltype(auto) get_awaiter(T && t) {
+        return std::forward<T>(t);
+    }
 
     template<concepts::awaitable T>
     requires requires(T t){t.operator co_await();}
-    auto get_awaiter(T && t) -> decltype(static_cast<T&&>(t).operator co_await());
+    decltype(auto) get_awaiter(T && t) {
+        return static_cast<T&&>(t).operator co_await();
+    }
 
     template<concepts::awaitable T>
     requires concepts::details::await_transformable<T>
-    auto get_awaiter(T && t) -> decltype(get_awaiter(std::declval<T>().await_transform()));
+    decltype(auto) get_awaiter(T && t) {
+        return get_awaiter(std::declval<T>().await_transform());
+    }
 
     template<concepts::awaitable T>
-    auto get_awaiter(T && t) -> decltype(operator co_await(static_cast<T&&>(t)));
+    decltype(auto) get_awaiter(T && t) {
+        return operator co_await(static_cast<T&&>(t));
+    }
 
 
     template<concepts::awaitable T>

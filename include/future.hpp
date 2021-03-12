@@ -71,9 +71,9 @@ namespace coio{
             m_result = std::current_exception();
         }
 
-        template<std::convertible_to<T> Value>
-        void return_value(Value && v)
-        noexcept(std::is_nothrow_convertible_v<Value&& , T>){
+        template<class Value>
+        requires std::constructible_from<T , Value>
+        void return_value(Value && v){
             m_result.template emplace<T>(std::forward<Value>(v));
         }
 
@@ -140,7 +140,7 @@ namespace coio{
             return std::coroutine_handle<future_promise>::from_promise(*this);
         }
 
-        void unhandle_exception() noexcept{
+        void unhandled_exception() noexcept{
             m_exception = std::current_exception();
         }
 
@@ -174,6 +174,7 @@ namespace coio{
             }
 
             bool await_suspend(std::coroutine_handle<> continuation) noexcept{
+                assert(m_handle);
                 m_handle.resume();
                 return m_handle.promise().set_continuation(continuation);
             }
@@ -182,7 +183,7 @@ namespace coio{
 
     public:
 
-        explicit future(std::coroutine_handle<promise_type> handle) noexcept
+        future(std::coroutine_handle<promise_type> handle) noexcept
         : m_handle(handle) {}
 
         ~future() noexcept {
