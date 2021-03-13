@@ -1,10 +1,13 @@
 #include <gtest/gtest.h>
 #include <iostream>
 
+#include "common/ref.hpp"
 #include "future.hpp"
+#include "when_all.hpp"
 #include "sync_wait.hpp"
 
-using coio::future , coio::sync_wait;
+using coio::future ,  coio::ref;
+using coio::sync_wait , coio::when_all;
 
 TEST(test_future , test_start){
     bool start = false;
@@ -33,6 +36,7 @@ TEST(test_future, test_destroy_result){
         count& operator=(const count&t){++cnt;return *this;}
     };
 
+    //temp var count{} will be copy into future
     auto f = []()->future<count>{
         co_return count{};
     };
@@ -81,25 +85,62 @@ TEST(test_future , test_return_convertiable){
 
 TEST(test_future , test_return_reference){
     int value{3};
-    auto f = [&]()-> future<int&>{
-        co_return value;
+    auto f = [&]()-> future<ref<int>>{
+        co_return ref{value};
     };
 
     sync_wait(
     [&]()->future<void>{
         {
             decltype(auto) result = co_await f();
-            // static_assert(std::is_same_v<decltype(result),int&>);
-            EXPECT_EQ(&result , &value);
+            static_assert(std::is_same_v<decltype(result),ref<int>&&>);
+            EXPECT_EQ(&result.get() , &value);
         }
 
         {
             auto t = f();
             decltype(auto) result = co_await t;
-            // static_assert(std::is_same_v<decltype(result),int&>);
-            EXPECT_EQ(&result , &value);
+            static_assert(std::is_same_v<decltype(result),ref<int>&>);
+            EXPECT_EQ(&result.get() , &value);
         }
     }());
+}
+
+TEST(test_future , test_when_all){
+    int value = 4;
+
+    {
+        auto make_future = [&]()->future<void> {
+            --value;
+            co_return;
+        };
+
+        std::vector<future<void>> v{};
+        v.emplace_back(make_future());
+        v.emplace_back(make_future());
+        sync_wait(when_all(std::move(v)));
+        EXPECT_EQ(value , 2);
+    }
+
+
+    {
+        auto make_future = [&]()->future<int> {
+            --value;
+            co_return value;
+        };
+
+        std::vector<future<int>> v{};
+        v.emplace_back(make_future());
+        v.emplace_back(make_future());
+
+        std::vector<int> results = sync_wait(when_all(std::move(v)));
+        EXPECT_EQ(results.size() , 2);
+        for(auto i = 2 ; int v: results)
+            EXPECT_EQ(--i , v);
+    }
+
+    EXPECT_EQ(value , 0);
+    
 }
 
 // TEST(test_future , test_exec_async){

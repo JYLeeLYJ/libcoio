@@ -14,7 +14,7 @@ namespace coio{
 
 namespace details{
 
-template<class T >
+template<class T>
 class awaitable_wrapper : non_copyable{
 public:
     struct promise_type{
@@ -35,7 +35,7 @@ public:
 
         //U = T , and enable yield_value function if T is not void
         template<class U>
-        requires (!std::is_void_v<U> && std::is_same_v<T,U>)
+        requires (!std::is_void_v<U> && std::is_same_v<value_type,std::remove_reference_t<U>>)
         auto yield_value( U && value) noexcept {
             m_pointer = std::addressof(value);
             return std::suspend_always{};
@@ -47,7 +47,7 @@ public:
 
         decltype(auto) result() {
             check_exception();    
-            if constexpr(!std::is_void_v<T>)      
+            if constexpr(!std::is_void_v<T>)  
                 return static_cast<T&&>(*m_pointer);
         }
 
@@ -63,7 +63,10 @@ public:
     awaitable_wrapper(std::coroutine_handle<promise_type> handle) noexcept
     :m_handle(handle){}
 
-    awaitable_wrapper(awaitable_wrapper && other) noexcept = delete;
+    awaitable_wrapper(awaitable_wrapper && other) noexcept
+    :m_handle(other.m_handle) {
+        other.m_handle = nullptr;
+    }
     awaitable_wrapper& operator= (awaitable_wrapper&& other) noexcept = delete;
 
     ~awaitable_wrapper(){
@@ -71,11 +74,11 @@ public:
     }
 
     void start(){
-        m_handle.resume();
+        if(m_handle)[[unlikely]]m_handle.resume();
     }
 
     bool is_ready() const noexcept{
-        return m_handle.done();
+        return !m_handle || m_handle.done();
     }
 
     decltype(auto) get(){

@@ -57,8 +57,8 @@ namespace coio{
     template<class T>
     concept future_value =
         concepts::value_type<T> || 
-        concepts::void_type<T> ||
-        concepts::lvalue_reference<T>;
+        concepts::void_type<T> ;//||
+        // concepts::lvalue_reference<T>;
     }
 
     template<concepts::future_value T>
@@ -129,34 +129,6 @@ namespace coio{
         }
     private:
         std::exception_ptr m_exception{};
-    };
-
-    template<class T>
-    class future_promise<T &> : public future_promise_base{
-        using value_type = std::remove_reference_t<T>;
-    public:
-        future_promise() noexcept = default;
-        auto get_return_object() noexcept{
-            return std::coroutine_handle<future_promise>::from_promise(*this);
-        }
-
-        void unhandled_exception() noexcept{
-            m_exception = std::current_exception();
-        }
-
-        void return_value( value_type & value){
-            m_value_ptr = std::addressof(value);
-        }
-
-        value_type & result(){
-            if(m_exception)[[unlikely]] 
-                std::rethrow_exception(m_exception);
-            assert(m_value_ptr);
-            return *m_value_ptr;
-        }
-    private:
-        value_type * m_value_ptr{nullptr};
-        std::exception_ptr m_exception;
     };
 
     template<concepts::future_value T>

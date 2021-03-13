@@ -13,24 +13,16 @@ namespace coio{
         namespace details {
 
             template<class T>
-            struct is_coroutine_handle 
-            : std::false_type{};
+            inline constexpr bool is_coroutine_handle_v = true;
 
             template<class Promise>
-            struct is_coroutine_handle<std::coroutine_handle<Promise>> 
-            : std::true_type{};
+            inline constexpr bool is_coroutine_handle_v<std::coroutine_handle<Promise>> = false;
 
             template<class T>
             concept suspend_result = 
                 std::same_as<bool ,T > || 
                 std::same_as<void , T> || 
-                is_coroutine_handle<T>::value; 
-
-            template<class T>
-            concept await_transformable = requires (T t){
-                typename T::promise_type;
-                std::declval<T::promise_type>().await_transform();
-            };
+                is_coroutine_handle_v<T>; 
 
         }
 
@@ -44,7 +36,6 @@ namespace coio{
         template<class T>
         concept awaitable = 
             awaiter<T> || 
-            details::await_transformable<T> ||
             requires(T t){
                 {operator co_await(t)} -> awaiter ;
             }||
@@ -65,21 +56,17 @@ namespace coio{
     }
 
     template<concepts::awaitable T>
-    requires concepts::details::await_transformable<T>
-    decltype(auto) get_awaiter(T && t) {
-        return get_awaiter(std::declval<T>().await_transform());
-    }
-
-    template<concepts::awaitable T>
     decltype(auto) get_awaiter(T && t) {
         return operator co_await(static_cast<T&&>(t));
     }
 
-
     template<concepts::awaitable T>
     struct awaitable_traits{
         using awaiter_t         = decltype(get_awaiter(std::declval<T>()));
-        using await_result_t    = decltype(std::declval<awaiter_t>().await_resume());
+        //T , T& or T&&
+        using await_resume_t    = decltype(std::declval<awaiter_t>().await_resume());
+        //T
+        using await_result_t    = std::remove_reference_t<await_resume_t>;
     };
 }
 

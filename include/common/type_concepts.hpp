@@ -5,6 +5,8 @@
 
 namespace coio{
     namespace concepts{
+
+        //type category
         template<class T>
         concept void_type = std::is_void_v<T>;
 
@@ -22,6 +24,7 @@ namespace coio{
 
         template<class T>
         concept value_type = !std::is_void_v<T> && !reference_type<T> && !function_type<T>;
+
     }
 }
 

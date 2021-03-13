@@ -13,7 +13,7 @@
 
 namespace coio{
 
-template<concepts::awaitable A , typename R = awaitable_traits<A>::await_result_t>
+template<concepts::awaitable A , typename R = awaitable_traits<A>::await_resume_t>
 details::awaitable_wrapper<R> make_sync_wait(A && awaitable , std::atomic<bool> & flag) {
     co_yield co_await details::attach_callback(
         std::forward<A>(awaitable) , 
@@ -24,7 +24,7 @@ details::awaitable_wrapper<R> make_sync_wait(A && awaitable , std::atomic<bool> 
     );
 }
 
-template<concepts::awaitable A , typename R = awaitable_traits<A>::await_result_t>
+template<concepts::awaitable A , typename R = awaitable_traits<A>::await_resume_t>
 requires std::same_as<void ,R>
 details::awaitable_wrapper<void> make_sync_wait(A && awaitable ,std::atomic<bool> & flag) {
     co_await details::attach_callback(

@@ -1,4 +1,5 @@
 #include <coroutine>
+#include "common/ref.hpp"
 #include "awaitable.hpp"
 #include "future.hpp"
 
@@ -23,8 +24,9 @@ static_assert(std::is_void_v<awaitable_traits<std::suspend_always>::await_result
 
 static_assert(is_awaitable<future<void>>());
 static_assert(is_awaitable<future<int>>());
-static_assert(is_awaitable<future<int&>>());
+static_assert(is_awaitable<future<coio::ref<int>>>());
 
+static_assert(std::is_same_v<future<int> , awaitable_traits<future<future<int>>>::await_result_t>);
 static_assert(std::is_same_v<int , awaitable_traits<future<int>>::await_result_t>);
-static_assert(std::is_same_v<int &, awaitable_traits<future<int&>>::await_result_t>);
+static_assert(std::is_same_v<coio::ref<int>, awaitable_traits<future<coio::ref<int>>>::await_result_t>);
 

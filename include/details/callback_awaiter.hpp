@@ -11,7 +11,7 @@ template<concepts::awaitable A , class Fn>
 requires std::is_nothrow_invocable_r_v<void , Fn>
 struct callback_awaiter{
     using awaiter_t = typename awaitable_traits<A&&>::awaiter_t;
-    Fn && m_callback;
+    Fn m_callback;
     awaiter_t m_awaiter;
 
     callback_awaiter(A && awaitable , Fn && callback_fn) 
@@ -44,7 +44,7 @@ struct callback_awaiter{
 
 template<class Awaitable , class Fn>
 auto attach_callback(Awaitable && awaitable , Fn && fn){
-    return callback_awaiter<Awaitable && , Fn &&>{
+    return callback_awaiter<Awaitable && , std::remove_reference_t<Fn>>{
         std::forward<Awaitable>(awaitable) , 
         std::forward<Fn>(fn)};
 }
