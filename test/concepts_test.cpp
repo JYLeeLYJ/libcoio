@@ -37,4 +37,3 @@ struct foo{};
 
 static_assert(std::is_same_v<foo&& , awaitable_traits<future<foo>>::await_resume_t>);
 static_assert(std::is_same_v<foo& , awaitable_traits<future<foo>&>::await_resume_t>);
-

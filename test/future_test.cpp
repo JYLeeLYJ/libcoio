@@ -5,9 +5,12 @@
 #include "future.hpp"
 #include "when_all.hpp"
 #include "sync_wait.hpp"
+#include "fmap.hpp"
+#include "just.hpp"
 
 using coio::future ,  coio::ref;
 using coio::sync_wait , coio::when_all;
+using coio::fmap , coio::just;
 
 TEST(test_future , test_start){
     bool start = false;
@@ -27,7 +30,7 @@ TEST(test_future , test_start){
     EXPECT_EQ(sync_wait(f) , 114514);
 }
 
-TEST(test_future, test_destroy_result){
+TEST(test_future, test_result_lifetime){
     static uint cnt{0};
     struct count {
         count() { ++ cnt;}
@@ -59,6 +62,16 @@ TEST(test_future, test_destroy_result){
         future<count> ft = f2(count{});
         EXPECT_EQ(cnt , 1);
     }
+
+    {
+        [[maybe_unused]]
+        auto && result = sync_wait(f2(count{}));
+        //warning : cause dangling reference , 
+        //sync_wait returns rvalue reference , not prvalue
+        //same_as co_await
+        EXPECT_EQ(cnt , 0); 
+    }
+
     EXPECT_EQ(cnt , 0);
 }
 
@@ -173,4 +186,40 @@ TEST(test_future , test_exec_async){
                 co_return;
 			}());
 	}());
+}
+
+//move count and zero copy
+TEST(test_future , test_move_and_copy_counting){
+    static uint moven = 0 , copyn = 0;
+    struct foo{
+        foo() = default;
+        foo(foo&& ){++moven;}
+        foo(const foo&) {++copyn;}
+        foo& operator=(foo&&){++moven; return *this;} 
+        foo& operator=(const foo&&){++copyn; return *this;}
+    };
+    
+    [[maybe_unused]]
+    //2.move into a
+    auto a = sync_wait([]()->future<foo>{
+        co_return foo{};//1. move here into future
+    }());
+    
+    EXPECT_EQ(copyn , 0);
+    EXPECT_EQ(moven , 2);
+
+    moven = 0;
+    auto future1 = []()->future<foo>{ co_return foo{};}();
+    [[maybe_unused]]
+    auto & result1 = sync_wait(future1); //return lvalue ref cause 'future1' is lvalue.
+    EXPECT_EQ(copyn , 0);
+    EXPECT_EQ(moven , 1);
+}
+
+TEST(test_future, test_fmap){
+    auto f = just(114514)
+    // auto f = []()->future<int> {co_return 114514;}()
+        | fmap([](int n){ return n ;});
+
+    EXPECT_EQ(sync_wait(f) , 114514);
 }

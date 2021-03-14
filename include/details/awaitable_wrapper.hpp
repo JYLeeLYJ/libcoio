@@ -54,7 +54,7 @@ public:
         }
 
         void check_exception(){
-            if(m_exception)
+            if(m_exception)[[unlikely]]
                 std::rethrow_exception(m_exception);
         }
 
@@ -76,7 +76,7 @@ public:
     }
 
     void start(){
-        if(m_handle)[[unlikely]]m_handle.resume();
+        if(m_handle)[[likely]]m_handle.resume();
     }
 
     bool is_ready() const noexcept{
