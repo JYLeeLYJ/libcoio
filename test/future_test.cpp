@@ -36,9 +36,9 @@ TEST(test_future, test_destroy_result){
         count& operator=(const count&t){++cnt;return *this;}
     };
 
-    //temp var count{} will be copy into future
+    //temp var count{} will be move into future
     auto f = []()->future<count>{
-        co_return count{};
+        co_return count{};  //copy
     };
 
     //destory result when future destory
@@ -143,37 +143,34 @@ TEST(test_future , test_when_all){
     
 }
 
-// TEST(test_future , test_exec_async){
-//     bool reachedBeforeEvent = false;
-// 	bool reachedAfterEvent = false;
-// 	cppcoro::single_consumer_event event;
-// 	auto f = [&]() -> cppcoro::task<>
-// 	{
-// 		reachedBeforeEvent = true;
-// 		co_await event;
-// 		reachedAfterEvent = true;
-// 	};
+TEST(test_future , test_exec_async){
+    bool before = false;
+	bool after = false;
+    coio::awaitable_counter counter{.cnt = 1};
+	auto f = [&]() -> future<void>{
+		before = true;
+		co_await counter;
+		after = true;
+	};
 
-// 	cppcoro::sync_wait([&]() -> cppcoro::task<>
-// 	{
-// 		auto t = f();
+	sync_wait([&]() -> future<void>{
+		auto t = f();
 
-// 		CHECK(!reachedBeforeEvent);
+        EXPECT_FALSE(before);
 
-// 		(void)co_await cppcoro::when_all_ready(
-// 			[&]() -> cppcoro::task<>
-// 			{
-// 				co_await t;
-// 				CHECK(reachedBeforeEvent);
-// 				CHECK(reachedAfterEvent);
-// 			}(),
-// 			[&]() -> cppcoro::task<>
-// 			{
-// 				CHECK(reachedBeforeEvent);
-// 				CHECK(!reachedAfterEvent);
-// 				event.set();
-// 				CHECK(reachedAfterEvent);
-// 				co_return;
-// 			}());
-// 	}());
-// }
+		co_await when_all(
+			[&]() -> future<void>{
+				co_await t;
+				EXPECT_TRUE(before);
+				EXPECT_TRUE(after);
+			}(),
+			[&]() -> future<void>
+			{
+				EXPECT_TRUE(before);
+				EXPECT_FALSE(after);
+				counter.notify_complete_one();
+                EXPECT_TRUE(after);
+                co_return;
+			}());
+	}());
+}

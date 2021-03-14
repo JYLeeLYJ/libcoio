@@ -134,7 +134,7 @@ TEST(test_generator , test_generator_throws){
         co_return;
     }();
 
-    ASSERT_ANY_THROW(g.begin());
+    EXPECT_ANY_THROW(g.begin());
     
     auto g2 = []() -> generator<int>{
         co_yield 1;
@@ -142,8 +142,8 @@ TEST(test_generator , test_generator_throws){
     }();
 
     auto it = g2.begin();
-    ASSERT_ANY_THROW(++it);
-    ASSERT_EQ(it , g2.end());
+    EXPECT_ANY_THROW(++it);
+    EXPECT_EQ(it , g2.end());
 }
 
 namespace {

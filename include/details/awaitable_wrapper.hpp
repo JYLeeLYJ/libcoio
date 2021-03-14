@@ -12,6 +12,8 @@
 
 namespace coio{
 
+struct void_value{};
+
 namespace details{
 
 template<class T>
@@ -83,6 +85,13 @@ public:
 
     decltype(auto) get(){
         return m_handle.promise().result();
+    }
+
+    decltype(auto) get_non_void(){
+        if constexpr (std::is_void_v<T>)
+            return void_value{};
+        else 
+            return m_handle.promise().result();
     }
 
 private:

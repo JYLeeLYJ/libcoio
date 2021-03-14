@@ -30,3 +30,11 @@ static_assert(std::is_same_v<future<int> , awaitable_traits<future<future<int>>>
 static_assert(std::is_same_v<int , awaitable_traits<future<int>>::await_result_t>);
 static_assert(std::is_same_v<coio::ref<int>, awaitable_traits<future<coio::ref<int>>>::await_result_t>);
 
+static_assert(std::is_same_v<int , awaitable_traits<future<int>>::await_resume_t>);
+static_assert(std::is_same_v<int& , awaitable_traits<future<int>&>::await_resume_t>);
+
+struct foo{};
+
+static_assert(std::is_same_v<foo&& , awaitable_traits<future<foo>>::await_resume_t>);
+static_assert(std::is_same_v<foo& , awaitable_traits<future<foo>&>::await_resume_t>);
+
