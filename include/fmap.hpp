@@ -12,25 +12,19 @@ namespace coio{
 //4. fmap_awaitable
 
 template<concepts::awaitable Awaitable , class Fn>
-requires std::invocable<Fn , typename awaitable_traits<Awaitable>::await_resume_t>
 struct fmap_awaitable : non_copyable{
 
     Awaitable awaitable;
     Fn continuation;
 
-    fmap_awaitable(Awaitable && awaitable , Fn && fn) noexcept
-    :awaitable(std::forward<Awaitable>(awaitable)) ,continuation(std::forward<Fn>(fn)) 
-    {}
-
-    fmap_awaitable(fmap_awaitable && other) = default;
-
+    template<class A , class F>
     struct fmap_awaiter {
-        //use rvalue
-        using awaiter_t = typename awaitable_traits<Awaitable&>::awaiter_t;
-        using await_result_t = typename awaitable_traits<Awaitable>::await_result_t;
+        //use lvalue
+        using awaiter_t = typename awaitable_traits<A>::awaiter_t;
+        using await_result_t = typename awaitable_traits<A>::await_result_t;
 
         awaiter_t awaiter;
-        Fn & fn;
+        F & fn;
 
         bool await_ready() noexcept {
             return awaiter.await_ready();
@@ -52,14 +46,15 @@ struct fmap_awaitable : non_copyable{
         }
     };
 
-    auto operator co_await() {
-        return fmap_awaiter{get_awaiter(awaitable) , continuation};
+    auto operator co_await() & {
+        return fmap_awaiter<Awaitable& , Fn>{get_awaiter(awaitable) , continuation};
     }
-};
+    
+    auto operator co_await() &&{
+        return fmap_awaiter<Awaitable , Fn>{get_awaiter(std::move(awaitable)) , continuation};
+    }
 
-// //deduction guide
-// template<class A , class Fn>
-// fmap_awaitable(A & , Fn &&) -> fmap_awaitable<A& , Fn>;
+};
 
 template<class Fn>
 struct fmap_transform{
@@ -69,18 +64,34 @@ struct fmap_transform{
 //then
 template<class Fn>
 auto fmap(Fn && fn) {
-    return fmap_transform{std::forward<Fn>(fn)};
+    return fmap_transform<Fn>{std::forward<Fn>(fn)};
+}
+
+namespace concepts {
+    template<class F , class Arg>
+    concept transform_function = 
+        ( std::is_void_v<Arg> && std::invocable<F> ) 
+        ||std::invocable<F , Arg> ;
+
 }
 
 template<concepts::awaitable A , class Fn>
-requires std::invocable<Fn , typename awaitable_traits<A>::await_resume_t>
-auto fmap(A && awaitable , Fn && fn){
-    return fmap_awaitable{std::forward<A>(awaitable) , std::forward<Fn>(fn)};
+requires concepts::transform_function<Fn ,typename awaitable_traits<A>::await_resume_t>
+auto fmap( A && awaitable ,Fn && fn ){
+    return fmap_awaitable<A , Fn>{
+        .awaitable = std::forward<A>(awaitable) , 
+        .continuation = std::forward<Fn>(fn)
+    };
 }
 
-template<concepts::awaitable A , class Fn>
+template<class A , class Fn>
+decltype(auto) operator | (A && awaitable , fmap_transform<Fn> & then){
+    return fmap(std::forward<A>(awaitable) ,then.fn );
+}
+
+template<class A, class Fn>
 decltype(auto) operator | (A && awaitable , fmap_transform<Fn> && then){
-    return fmap(std::forward<A>(awaitable) , std::move(then.fn));
+    return fmap( std::forward<A>(awaitable) , std::forward<decltype(then)>(then).fn);
 }
 
 }

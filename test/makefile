@@ -1,6 +1,6 @@
 CXX := g++
 CPPSTD := -std=c++20
-OPT := -O3 -fcoroutines
+OPT := -O3 -fcoroutines #-ftime-report
 INCLUDE := $(PROJ_DIR)/include
 DEFINE := 
 WARNING := -Wall 

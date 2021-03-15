@@ -5,12 +5,9 @@
 #include "future.hpp"
 #include "when_all.hpp"
 #include "sync_wait.hpp"
-#include "fmap.hpp"
-#include "just.hpp"
 
 using coio::future ,  coio::ref;
 using coio::sync_wait , coio::when_all;
-using coio::fmap , coio::just;
 
 TEST(test_future , test_start){
     bool start = false;
@@ -214,12 +211,4 @@ TEST(test_future , test_move_and_copy_counting){
     auto & result1 = sync_wait(future1); //return lvalue ref cause 'future1' is lvalue.
     EXPECT_EQ(copyn , 0);
     EXPECT_EQ(moven , 1);
-}
-
-TEST(test_future, test_fmap){
-    auto f = just(114514)
-    // auto f = []()->future<int> {co_return 114514;}()
-        | fmap([](int n){ return n ;});
-
-    EXPECT_EQ(sync_wait(f) , 114514);
 }
