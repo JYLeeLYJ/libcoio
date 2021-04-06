@@ -3,7 +3,7 @@ CPPSTD := c++20
 OPT := -O3
 INCLUDE := ./include
 DEFINE := 
-CXXFLAGS := $(OPT) -std=$(CPPSTD) $(DEFINE) -I$(INCLUDE) -Wall -fcoroutines
+CXXFLAGS := $(OPT) -std=$(CPPSTD) $(DEFINE) -I$(INCLUDE) -Wall -fcoroutines 
 
 .PHONY: test clean
 clean : 

@@ -76,7 +76,7 @@ namespace concepts {
 }
 
 template<concepts::awaitable A , class Fn>
-requires concepts::transform_function<Fn ,typename awaitable_traits<A>::await_resume_t>
+// requires concepts::transform_function<Fn ,typename awaitable_traits<A>::await_resume_t>
 auto fmap( A && awaitable ,Fn && fn ){
     return fmap_awaitable<A , Fn>{
         .awaitable = std::forward<A>(awaitable) , 

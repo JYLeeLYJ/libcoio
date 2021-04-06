@@ -42,6 +42,11 @@ namespace coio{
             requires(T t){
                 {t.operator co_await()} -> awaiter;
             };
+
+        template<class Fn , class ...Args>
+        concept coroutine = requires {
+            typename std::invoke_result_t<Fn,Args...>::promise_type;
+        };
     }
 
     template<concepts::awaiter T>
