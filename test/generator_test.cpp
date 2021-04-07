@@ -1,6 +1,8 @@
 #include <gtest/gtest.h>
 #include <concepts>
 #include <string>
+#include <ranges>
+#include <iterator>
 #include "generator.hpp"
 
 using coio::generator;
@@ -183,4 +185,24 @@ TEST(test_generator , test_example){
     }
 
 }
-//TODO: test fmap 
+
+TEST(test_generator , test_with_stdranges){
+    //requires ranges 
+    std::ranges::range auto g 
+        = []()->generator<uint>{
+            for(uint i = 0 ; true ; ++i){
+                co_yield i;
+            }
+        }();
+
+    //requires input_or_output_iterator
+    [[maybe_unused]]
+    std::input_or_output_iterator auto beg = g.begin();
+
+    auto even = [](uint i) {return ! (i & 1);};
+
+    for(uint v = 0 ; auto i :  g | std::views::filter(even) | std::views::take(10)){
+        ASSERT_EQ(i , v);
+        v+=2;
+    }
+}

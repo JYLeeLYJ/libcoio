@@ -70,27 +70,23 @@ namespace coio{
 
         struct sential{};
 
-        class iterator:private non_copyable{
+        class iterator{
         public:
-            explicit iterator() noexcept = default;
-            explicit iterator(std::coroutine_handle<promise> handle) noexcept
-            :m_handle(handle)
-            {}
-
-            explicit iterator(iterator && it) noexcept
-            :m_handle(it.m_handle){
-                it.m_handle = nullptr;
-            }
-
-            iterator & operator= (iterator &&it) noexcept{
-                m_handle = it.m_handle;
-                it.m_handle = nullptr;
-            }
+            using value_type        = typename generator::value_type;
+            using reference         = typename generator::reference_type;
+            using pointer           = value_type *;
+            using difference_type   = std::ptrdiff_t;
+            using iterator_tag      = std::input_iterator_tag;
+        public:
+            iterator() noexcept = default;
+            explicit iterator(std::coroutine_handle<promise> handle) noexcept : m_handle(handle){}
+            iterator(const iterator &) = default;
+            iterator & operator = (const iterator &) = default;
 
             bool operator == (sential s) const noexcept{
                 return !m_handle || m_handle.done();
             }
-            void operator ++(int) {(void)++(*this);}
+            iterator operator ++(int) {return ++(*this);}
 
             iterator& operator++(){
                 m_handle.resume();
@@ -99,7 +95,7 @@ namespace coio{
             }
 
             //unsafe unwrap
-            reference_type operator*() const noexcept{
+            reference operator*() const noexcept{
                 return static_cast<reference_type>(*operator->());
             }
 
@@ -131,14 +127,18 @@ namespace coio{
 
         iterator begin() &{
             if(!m_handle) [[unlikely]] std::terminate();
-            m_handle.resume();
-            m_handle.promise().try_rethrow();
+            if(!m_init_begin){
+                m_handle.resume();
+                m_init_begin = true;
+                m_handle.promise().try_rethrow();
+            }
             return iterator{m_handle};
         }
 
         sential end() const noexcept {return {};}
 
     private:
+        bool m_init_begin{false};
         std::coroutine_handle<promise> m_handle;
     };
 
