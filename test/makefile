@@ -1,10 +1,10 @@
 CXX := g++
 CPPSTD := -std=c++20
-OPT := -O3 -fcoroutines -fconcepts-diagnostics-depth=5 #-ftime-report 
+OPT := -O3 -fcoroutines #-fconcepts-diagnostics-depth=5 #-ftime-report 
 INCLUDE := $(PROJ_DIR)/include
 DEFINE := 
-WARNING := -Wall 
-LINK := -lgtest -lgtest_main -lpthread
+WARNING := -Wall -Werror
+LINK := -lgtest -lgtest_main -lpthread -l:liburing.a
 CXXFLAGS := $(OPT) $(CPPSTD) $(DEFINE) -I$(INCLUDE) $(WARNING)
 
 OUT_DIR := $(PROJ_DIR)/bin

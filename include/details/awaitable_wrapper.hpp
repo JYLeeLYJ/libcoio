@@ -76,7 +76,7 @@ public:
     }
 
     void start(){
-        if(m_handle)[[likely]]m_handle.resume();
+        if(m_handle) m_handle.resume();
     }
 
     bool is_ready() const noexcept{
@@ -92,6 +92,10 @@ public:
             return void_value{};
         else 
             return m_handle.promise().result();
+    }
+
+    std::coroutine_handle<> handle() const{
+        return m_handle;
     }
 
 private:

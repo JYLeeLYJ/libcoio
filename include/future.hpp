@@ -203,7 +203,7 @@ namespace coio{
             return !m_handle || m_handle.done();
         }
 
-        auto await_ready() const noexcept{
+        auto await_when_ready() const noexcept{
             struct awaiter:basic_awaiter{
                 using basic_awaiter::basic_awaiter;
                 void await_resume() noexcept {}
