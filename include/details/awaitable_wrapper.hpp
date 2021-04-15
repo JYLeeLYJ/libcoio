@@ -69,7 +69,12 @@ public:
     :m_handle(other.m_handle) {
         other.m_handle = nullptr;
     }
-    awaitable_wrapper& operator= (awaitable_wrapper&& other) noexcept = delete;
+    awaitable_wrapper& operator= (awaitable_wrapper&& other) noexcept {
+        if(other.m_handle != m_handle) this->~awaitable_wrapper();
+        m_handle = other.m_handle;
+        other.m_handle = nullptr;
+        return *this;
+    }
 
     ~awaitable_wrapper(){
         if(m_handle) m_handle.destroy();

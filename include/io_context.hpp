@@ -22,7 +22,9 @@ class io_context;
 
 namespace concepts{
     template<class F>
-    concept task = std::is_invocable_r_v<void ,F>;  // need std::is_nothrow_invocable_r_v<void , F> ?
+    concept task = 
+        std::is_invocable_r_v<void ,F> && // need std::is_nothrow_invocable_r_v<void , F> ?
+        std::copy_constructible<F>;  //std::function requires
 }
 
 //execution context
@@ -56,9 +58,9 @@ public:
     auto bind_this_thread(){
         m_thid = std::this_thread::get_id();
         this_thread_context = this;
-        return scope_guard{.f = []()noexcept{
-            this_thread_context = nullptr;
-        }};
+        return scope_guard{
+            []()noexcept{ this_thread_context = nullptr;}
+        };
     }
 
     bool is_in_local_thread() noexcept{
@@ -101,7 +103,8 @@ public:
     void dispatch(F && f){
         if(!is_in_local_thread()){
             std::lock_guard{m_mutex};
-            m_remote_tasks.emplace_back(std::forward<F>(f));
+            m_remote_tasks.emplace_back(std::move(f));
+            // m_remote_tasks.emplace_back(std::forward<F>(f));
         }else 
             std::forward<F>(f)();
     }
@@ -126,13 +129,27 @@ public:
     //put an awaitable object into context to wait for finished
     template<concepts::awaitable A>
     void co_spawn(A && a){
-        dispatch([this , awaitable = std::move(a)]{
-            auto co_spwan_entry = co_spwan_entry_point(std::move(awaitable));
-            this->m_detach_task[co_spwan_entry.handle] = std::move(co_spwan_entry);
-        });
+        auto co_spawn_entry = co_spwan_entry_point(std::move(a));
+        if(is_in_local_thread()){
+            insert_entry_and_start(std::move(co_spawn_entry));
+        }else{
+            std::lock_guard guard{m_mutex};
+            m_remote_co_spwan.push_back(std::move(co_spawn_entry));
+        }
+        // std::function not support move-only lambda
+        // dispatch([this , co_spawn_entry = co_spwan_entry_point(std::move(a))]()mutable{
+        //     auto handle = co_spawn_entry.handle() ;
+        //     this->m_detach_task.insert_or_assign( handle, std::move(co_spawn_entry));
+        // });
     }
 
     //TODO:execute an coroutine on current context.
+
+
+    //
+    std::size_t detach_task_cnt() const noexcept{
+        return m_detach_task.size();
+    }
 
 public:
     
@@ -215,8 +232,8 @@ private:
             //TODO: define runtime error ? callback not found .
         });
 
-        cnt+= resolved_remote_task();
-        cnt+= resolved_local_task();
+        cnt+= resolve_remote_task();
+        cnt+= resolve_local_task();
 
         //IO submit 
         if(::io_uring_sq_ready(&m_ring)>0)
@@ -227,7 +244,26 @@ private:
             empty_cnt = 0 , std::this_thread::yield();
     }
 
-    std::size_t resolved_remote_task(){
+    void insert_entry_and_start(spawn_task && entry){
+        auto handle = entry.handle();
+        m_detach_task.insert_or_assign(handle , std::move(entry));
+        handle.resume();
+    }
+
+    void resolve_remote_coroutine(){
+        if(m_remote_co_spwan.empty()) return ;
+        std::vector<spawn_task> tasks{};
+        {
+        std::lock_guard guard{m_mutex};
+        std::swap(tasks , m_remote_co_spwan);
+        }
+
+        for(auto & entry : tasks){
+            insert_entry_and_start(std::move(entry));
+        }
+    }
+
+    std::size_t resolve_remote_task(){
         if(!m_remote_tasks.empty()){
             task_list tasks{};
             {
@@ -241,7 +277,7 @@ private:
             return 0;
     }
 
-    std::size_t resolved_local_task(){
+    std::size_t resolve_local_task(){
         if(!m_local_tasks.empty()){
             task_list tasks{};
             tasks.swap(m_local_tasks);
@@ -270,15 +306,16 @@ private:
 
     std::mutex m_mutex;
     task_list m_remote_tasks;
+    std::vector<spawn_task> m_remote_co_spwan;
 
     task_list m_local_tasks;
     std::atomic<bool> m_is_stopped{false};
     std::thread::id m_thid;
-
+    
     //waiting for io complete
     std::map<std::coroutine_handle<>, std::reference_wrapper<async_result>> m_pending_coroutines;
     //co_spwan ownership 
-    std::map<std::coroutine_handle<> , spawn_task> m_detach_task;
+    std::map<std::coroutine_handle<> , spawn_task> m_detach_task;//
 };
 
 }

@@ -2,7 +2,9 @@
 #include <future>
 #include <unistd.h>
 #include <sys/syscall.h>
+
 #include "io_context.hpp"
+#include "future.hpp"
 
 TEST(test_io_context , test_syscall_implement){
     io_uring_params p{};
@@ -104,3 +106,25 @@ TEST(test_io_context , test_stop_token){
 }
 
 //test co_spawn
+TEST(test_io_context , test_co_spawn){
+    coio::io_context ctx{};
+    auto guard = ctx.bind_this_thread();
+    
+    bool is_execute = false;
+    bool is_destory = true;
+    ctx.co_spawn([&]()->coio::future<void>{
+        //will be destory before this coro destory
+        coio::scope_guard gaurd = [&]()noexcept{
+            is_destory = true;
+        };
+        is_execute = true;
+        co_return;
+    }());
+    ctx.post([&]{
+        ctx.request_stop();
+    });
+    EXPECT_TRUE(is_execute);
+    EXPECT_TRUE(is_destory);
+    EXPECT_TRUE(ctx.detach_task_cnt() == 0);
+    ctx.run();
+}

@@ -169,8 +169,11 @@ namespace coio{
         }
 
         future& operator=(future && other) noexcept{
-            this->~future();
-            swap(m_handle , other.m_handle);
+            if(other.m_handle != m_handle) [[likely]]
+                this->~future();
+            m_handle = other.m_handle;
+            other.m_handle = nullptr;
+            return *this;
         }
 
     public:
