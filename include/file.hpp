@@ -3,9 +3,13 @@
 
 #include <liburing.h>
 #include <unistd.h>
+#include <fcntl.h>
+
+#include <stdexcept>
 #include <filesystem>
 
 #include "common/non_copyable.hpp"
+#include "io_context.hpp"
 
 namespace coio{
 
@@ -28,18 +32,33 @@ namespace coio{
             if(other.fd != fd)[[likely]]this->~fd_base() ;
             fd = other.fd;
             other.fd = -1;
+            return *this;
         }
-        
+
     private:
         int fd{-1};
     };
 
-    class file_base{
+    class file : fd_base{
+    private:
+        explicit file(int fd) noexcept 
+        : fd_base(fd) {}
+
     public:
         //openat 
-        static void openat(std::filesystem::path p , int flag ){
-            // ::io_uring_prep_openat()
+        static auto openat(std::filesystem::path p , int flag , mode_t mode = mode_t{}){
+            auto ctx = io_context::current_context();
+            return ctx->submit_io_task(
+                [path = std::move(p) , flag , mode](io_uring_sqe* sqe){
+                    ::io_uring_prep_openat(sqe , AT_FDCWD , path.c_str(), flag , mode );
+                },
+                [](int res , int flag [[maybe_unused]]){
+                    if(res < 0) throw std::system_error{-res , std::system_category()};
+                    else return file{res};
+                }
+            );
         }
+
         //stat
         
         //read

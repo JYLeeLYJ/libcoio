@@ -125,6 +125,8 @@ TEST(test_io_context , test_co_spawn){
     });
     EXPECT_TRUE(is_execute);
     EXPECT_TRUE(is_destory);
-    EXPECT_TRUE(ctx.detach_task_cnt() == 0);
+    EXPECT_TRUE(ctx.current_coroutine_cnt() == 0);
     ctx.run();
 }
+
+//TODO:test sqe full

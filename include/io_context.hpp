@@ -39,7 +39,8 @@ private:
 
 public:
 
-    static io_context * current_context(){
+    static io_context * current_context() noexcept{
+        assert(this_thread_context);
         return this_thread_context;
     }
 
@@ -55,7 +56,7 @@ public:
     //try bind io_context with this thread
     //RAII : auto release binding.
     [[nodiscard]]
-    auto bind_this_thread(){
+    auto bind_this_thread() noexcept{
         m_thid = std::this_thread::get_id();
         this_thread_context = this;
         return scope_guard{
@@ -129,7 +130,7 @@ public:
     //put an awaitable object into context to wait for finished
     template<concepts::awaitable A>
     void co_spawn(A && a){
-        auto co_spawn_entry = co_spwan_entry_point(std::move(a));
+        auto co_spawn_entry = co_spwan_entry_point<A>(std::forward<A>(a));
         if(is_in_local_thread()){
             insert_entry_and_start(std::move(co_spawn_entry));
         }else{
@@ -147,39 +148,55 @@ public:
 
 
     //
-    std::size_t detach_task_cnt() const noexcept{
+    std::size_t current_coroutine_cnt() const noexcept{
         return m_detach_task.size();
     }
 
 public:
     
     struct async_result {
-        int err{0};
-        constexpr void set_error(int error ){ err = error;}
+        int res;
+        int flag;
+        std::coroutine_handle<> continuation;
+        constexpr void set_result(int res , int flag) noexcept{ 
+            this->res = res; this->flag = flag;
+        }
+        constexpr void set_continuation(std::coroutine_handle<> handle) noexcept{
+            continuation = handle;
+        }
+        void resume() noexcept{
+            assert(continuation.address());
+            if(continuation)[[likely]] continuation.resume();
+        }
     };
 
-    template<class F>
+    template<class F , class R>
     struct [[nodiscard]] io_awaiter: std::suspend_always , async_result {
         F io_operation;
-        void await_suspend(std::coroutine_handle<> handle){
+        R get_result;
+        
+        void await_suspend(std::coroutine_handle<> handle) 
+        noexcept(noexcept(io_operation(nullptr))){
             auto ctx = io_context::current_context();
-            ctx->m_pending_coroutines.insert_or_assign(
-                handle ,  
-                std::ref(static_cast<async_result&>(*this))
-            );
             auto *sqe = ::io_uring_get_sqe(&ctx->m_ring);
             //TODO:process full sqe uring
             assert(sqe);
-            ::io_uring_sqe_set_data(sqe , handle.address());
             // fill io info into sqe
             (void)io_operation(sqe);
+            set_continuation(handle);
+            ::io_uring_sqe_set_data(sqe , static_cast<async_result*>(this));
         }
-        int await_resume() noexcept{return err;}
+        auto await_resume() noexcept(std::is_nothrow_invocable_v<R , int , int>){
+            return get_result(res,flag);
+        }
     };
 
-    template<std::invocable<io_uring_sqe*> F>
-    static auto emit_io_task(F && f){
-        return io_awaiter<F>{ .io_operation = std::move(f)};
+    template<std::invocable<io_uring_sqe*> FSubmit , std::invocable<int,int> FResult>
+    static auto submit_io_task(FSubmit && fsubmit , FResult && fget){
+        return io_awaiter<FSubmit , FResult>{
+            .io_operation = std::forward<FSubmit>(fsubmit) , 
+            .get_result = std::forward<FResult>(fget)
+        };
     }
 
 private:
@@ -196,7 +213,7 @@ private:
     };
 
     template<concepts::awaitable A>
-    spawn_task co_spwan_entry_point( A && a){
+    spawn_task co_spwan_entry_point( A a){
         (void)co_await std::forward<A>(a);
         co_await entry_final_awaiter{};
     }
@@ -221,14 +238,10 @@ private:
         //process IO complete
         cnt+= ::io_uring_cq_ready(&m_ring);
         for_each_cqe([this](io_uring_cqe * cqe) noexcept{
-            auto handle = std::coroutine_handle<>::from_address(::io_uring_cqe_get_data(cqe));
-            assert(handle);
-            if(auto it = m_pending_coroutines.find(handle);
-            it != m_pending_coroutines.end())[[likely]]{
-                it->second.get().err = cqe->res;
-                m_pending_coroutines.erase(it);
-                handle.resume();
-            }
+            auto result = reinterpret_cast<async_result*>(::io_uring_cqe_get_data(cqe));
+            assert(result);
+            result->set_result(cqe->res , cqe->flags);
+            result->resume();
             //TODO: define runtime error ? callback not found .
         });
 
@@ -312,8 +325,6 @@ private:
     std::atomic<bool> m_is_stopped{false};
     std::thread::id m_thid;
     
-    //waiting for io complete
-    std::map<std::coroutine_handle<>, std::reference_wrapper<async_result>> m_pending_coroutines;
     //co_spwan ownership 
     std::map<std::coroutine_handle<> , spawn_task> m_detach_task;//
 };
