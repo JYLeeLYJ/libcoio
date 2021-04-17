@@ -65,7 +65,7 @@ public:
     }
 
     bool is_in_local_thread() noexcept{
-        return current_context() == this;
+        return this_thread_context == this;
     }
 
     void run(){
@@ -221,10 +221,10 @@ private:
 private:
 
     void assert_bind(){
-        if(!current_context()) 
+        if(!this_thread_context) 
             throw std::logic_error{"need invoke bind_this_thread() when before run()."};
         //another io_context runs on this thread
-        else if(current_context() != this )  
+        else if(this_thread_context != this )  
             throw std::logic_error{"more than one io_context run in this thread."};
         //this io_context runs on the other thread
         else if( m_thid != std::this_thread::get_id()) 

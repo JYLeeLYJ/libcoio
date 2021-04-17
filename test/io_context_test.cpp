@@ -17,7 +17,7 @@ TEST(test_io_context , post_trival_task){
     coio::io_context ctx{};
     uint cnt{0};
     
-    auto context_guard = ctx.bind_this_thread();
+    auto _ = ctx.bind_this_thread();
 
     for([[maybe_unused]] auto i : std::ranges::iota_view{0,10})
         ctx.post([&]{
@@ -61,7 +61,6 @@ TEST(test_io_context , post_trival_task){
 
 TEST(test_io_context , test_bind_and_dispatch){
     coio::io_context ctx{};
-    
     //post into remote queue because ctx is not bound with this thread.
     bool is_executed = false;
     ctx.dispatch([&]{
@@ -69,7 +68,9 @@ TEST(test_io_context , test_bind_and_dispatch){
         ctx.request_stop();
     });
     EXPECT_FALSE(is_executed);
+#ifdef NDEBUG
     EXPECT_EQ(coio::io_context::current_context() , nullptr);
+#endif
     //assert not binding and throw logic_error
     ASSERT_ANY_THROW(ctx.run());
     {
@@ -82,8 +83,9 @@ TEST(test_io_context , test_bind_and_dispatch){
         });
         EXPECT_TRUE(is_executed);
     }
-
+#ifdef NDEBUG
     EXPECT_EQ(coio::io_context::current_context() , nullptr);
+#endif
 }
 
 //test stop token

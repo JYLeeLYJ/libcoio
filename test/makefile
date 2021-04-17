@@ -22,7 +22,7 @@ OBJS := $(patsubst %.cpp,$(TMP_DIR)/%.o,$(notdir $(shell ls $(SRC_DIR)/*.cpp)))
 .PHONY: test
 test: $(OBJS)
 	$(CXX) $(OBJS) -o $(TARGET) $(CXXFLAGS) $(LINK)
-	$(TARGET)
+	cd $(PROJ_DIR) && $(TARGET)
 
 $(TMP_DIR)/%.o : $(SRC_DIR)/%.cpp
 	$(CXX) $< -o $@ -c $(CXXFLAGS) -MMD -MF $@.d
