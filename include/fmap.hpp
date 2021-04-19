@@ -12,7 +12,7 @@ namespace coio{
 //4. fmap_awaitable
 
 template<concepts::awaitable Awaitable , class Fn>
-struct fmap_awaitable : non_copyable{
+struct fmap_awaitable {
 
     Awaitable awaitable;
     Fn continuation;
@@ -21,7 +21,6 @@ struct fmap_awaitable : non_copyable{
     struct fmap_awaiter {
         //use lvalue
         using awaiter_t = typename awaitable_traits<A>::awaiter_t;
-        using await_result_t = typename awaitable_traits<A>::await_result_t;
 
         awaiter_t awaiter;
         F & fn;
@@ -37,7 +36,7 @@ struct fmap_awaitable : non_copyable{
         }
 
         decltype(auto) await_resume() {
-            if constexpr (std::is_void_v<await_result_t>){
+            if constexpr (std::is_void_v<decltype(awaiter.await_resume())>){
                 awaiter.await_resume();
                 return std::invoke(fn);
             }else{
@@ -46,12 +45,11 @@ struct fmap_awaitable : non_copyable{
         }
     };
 
-    auto operator co_await() & {
-        return fmap_awaiter<Awaitable& , Fn>{get_awaiter(awaitable) , continuation};
-    }
-    
-    auto operator co_await() &&{
-        return fmap_awaiter<Awaitable , Fn>{get_awaiter(std::move(awaitable)) , continuation};
+    auto operator co_await() {
+        return fmap_awaiter<Awaitable&& , Fn>{
+            .awaiter= get_awaiter(std::forward<Awaitable>(awaitable)) , 
+            .fn     = continuation
+        };
     }
 
 };

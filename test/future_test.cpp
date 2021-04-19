@@ -150,7 +150,33 @@ TEST(test_future , test_when_all){
     }
 
     EXPECT_EQ(value , 0);
-    
+
+    //-------------------------------------
+
+    struct awaiter : std::suspend_never{
+        bool * p{};
+        awaiter(bool * ptr):p(ptr){}
+        awaiter(awaiter && a):p(a.p){a.p = nullptr;}
+        awaiter& operator=(awaiter && a){std::swap(p , a.p); a.p = nullptr;return *this;}
+        ~awaiter(){ if(p) *p = true; }
+    };
+
+    //when_all must owns awaiter when it is rvalue.
+    bool is_destory {false};
+    {
+        auto when = when_all(awaiter{&is_destory});
+        EXPECT_FALSE(is_destory);
+        sync_wait(when);
+    }
+    EXPECT_TRUE(is_destory);
+
+    //not moving 
+    is_destory = false;
+    auto waiter = awaiter{&is_destory};
+    auto w_a = when_all(waiter);
+    EXPECT_FALSE(is_destory);
+    sync_wait(w_a);
+    EXPECT_FALSE(is_destory);
 }
 
 TEST(test_future , test_exec_async){

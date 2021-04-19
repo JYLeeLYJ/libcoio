@@ -14,21 +14,22 @@ TEST(test_file , test_trivally_read_write){
     ctx.co_spawn([&]()->coio::future<void>{
         try{
             if(!fs::exists("./tmp")) fs::create_directory("./tmp");
+            if(fs::exists("./tmp/test.txt")) fs::remove("./tmp/test.txt");
+            //open
             auto file = co_await coio::file::openat("./tmp/test.txt" , O_CREAT|O_RDWR );
             std::string write_str{"hello world."};
             std::span buffer = std::as_bytes(std::span{write_str});
             //write
             int n = co_await file.write(buffer);
             EXPECT_EQ(n , write_str.size());
-
+            //read
             std::array<char,16> read_buff{};
             n = co_await file.read(std::as_writable_bytes(std::span{read_buff}));
             EXPECT_EQ(n , write_str.size());
             EXPECT_EQ(std::string_view(read_buff.data() , n) , "hello world."sv);
-
+            //readv
             std::array<char , 6> b1{};
             std::array<char , 6> b2{};
-
             n = co_await file.readv(
                 std::as_writable_bytes(std::span{b1}) , 
                 std::as_writable_bytes(std::span{b2}));

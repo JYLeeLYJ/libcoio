@@ -214,7 +214,10 @@ private:
 
     template<concepts::awaitable A>
     spawn_task co_spwan_entry_point( A a){
-        (void)co_await std::forward<A>(a);
+        //GCC BUG TRACK : https://gcc.gnu.org/bugzilla/show_bug.cgi?id=99575
+        // https://godbolt.org/z/anWWjb4j4
+        // (void)co_await std::forward<A>(a);   // A& will also be moved here (on gcc)
+        (void)co_await reinterpret_cast<A&&>(a);
         co_await entry_final_awaiter{};
     }
 
