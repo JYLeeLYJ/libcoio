@@ -47,6 +47,13 @@ namespace coio{
         concept coroutine = requires {
             typename std::invoke_result_t<Fn,Args...>::promise_type;
         };
+
+        template<class A , class T>
+        concept awaiter_of = 
+            awaiter<A> && 
+            requires (A a){
+                {a.await_resume()} -> std::same_as<T>;
+            };
     }
 
     template<concepts::awaiter T>
@@ -73,6 +80,13 @@ namespace coio{
         //T
         using await_result_t    = std::remove_reference_t<await_resume_t>;
     };
+
+    // namespace concepts{
+    //     template<class A , class T>
+    //     concept async_result = 
+    //         awaitable<A> && 
+    //         std::same_as<T , typename awaitable_traits<A>::await_result_t>;
+    // }
 }
 
 #endif 

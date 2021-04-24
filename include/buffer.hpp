@@ -46,6 +46,15 @@ namespace coio{
         };
     }
 
+    template<concepts::buffer ...T>
+    requires (sizeof...(T)>3)
+    auto make_iovecs(T && ...buff){
+        std::vector<::iovec> iovecs{};
+        iovecs.reserve(sizeof...(T));
+        (iovecs.emplace_back(buff.data() , buff.size()),...);
+        return iovecs;
+    }
+
     template<concepts::buffer_sequence T>
     auto make_iovecs(T && buffs){
         std::vector<::iovec> iovecs{};

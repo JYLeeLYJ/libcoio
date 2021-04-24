@@ -1,13 +1,13 @@
 #ifndef COIO_IOCONTEXT_HPP
 #define COIO_IOCONTEXT_HPP
 
-#include <queue>
 #include <atomic>
 #include <mutex>
 #include <thread>
 #include <functional>
 #include <ranges>
 #include <map>
+#include <deque>
 #include <stop_token>
 
 #include <liburing.h>
@@ -137,11 +137,6 @@ public:
             std::lock_guard guard{m_mutex};
             m_remote_co_spwan.push_back(std::move(co_spawn_entry));
         }
-        // std::function not support move-only lambda
-        // dispatch([this , co_spawn_entry = co_spwan_entry_point(std::move(a))]()mutable{
-        //     auto handle = co_spawn_entry.handle() ;
-        //     this->m_detach_task.insert_or_assign( handle, std::move(co_spawn_entry));
-        // });
     }
 
     //TODO:execute an coroutine on current context.
@@ -172,8 +167,8 @@ public:
 
     template<class F , class R>
     struct [[nodiscard]] io_awaiter: std::suspend_always , async_result {
-        F io_operation;
-        R get_result;
+        [[no_unique_address]] F io_operation;
+        [[no_unique_address]] R get_result;
         
         void await_suspend(std::coroutine_handle<> handle) 
         noexcept(noexcept(io_operation(nullptr))){
