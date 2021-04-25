@@ -31,6 +31,7 @@ TEST(test_file , test_trivally_read_write){
             std::array<char , 6> b1{};
             std::array<char , 6> b2{};
             n = co_await file.readv(
+                0,
                 std::as_writable_bytes(std::span{b1}) , 
                 std::as_writable_bytes(std::span{b2}));
             

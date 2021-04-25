@@ -40,7 +40,7 @@ namespace coio{
     auto make_iovecs(T &&... buff ){
         return std::array<::iovec , sizeof...(T)>{
             ::iovec{
-                .iov_base = buff.data(),
+                .iov_base = const_cast<void *>((const void *)buff.data()),
                 .iov_len = buff.size()
             }...,
         };

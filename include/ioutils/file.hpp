@@ -36,7 +36,7 @@ namespace coio{
 
         
         //read
-        //(buffer ... ) -> awaitable <int>
+        //(buffer ... ) -> awaitable <size_t>
         //return : count of read bytes
         template<concepts::writeable_buffer T>
         auto read(T &&  buff , off_t off = off_t{}) -> awaiter_of<std::size_t> auto{
@@ -54,14 +54,14 @@ namespace coio{
         }
 
         //readv
-        //(buffer ... ) -> awaitable <int>
+        //off_t -> (buffer ... ) -> awaitable <size_t>
         //return : count of read bytes
         template<concepts::writeable_buffer ...T>
-        auto readv(T&& ... buff) -> awaiter_of<std::size_t> auto{
+        auto readv(off_t off , T&& ... buff) -> awaiter_of<std::size_t> auto{
             auto ctx = io_context::current_context();
             return ctx->submit_io_task(
-                [iovecs = make_iovecs(buff...) ,this](io_uring_sqe * sqe){
-                    ::io_uring_prep_readv(sqe ,this->fd , iovecs.data() , iovecs.size() , 0 );
+                [iovecs = make_iovecs(buff...) ,this,off](io_uring_sqe * sqe){
+                    ::io_uring_prep_readv(sqe ,this->fd , iovecs.data() , iovecs.size() , off );
                 },
                 [](int res , int flag [[maybe_unused]])->std::size_t{
                     if(res < 0) throw make_system_error(-res);
@@ -71,10 +71,13 @@ namespace coio{
         }
 
         //write
+        //buffer -> off_t -> awaitable<size_t>
+        //return : count of write bytes
         template<concepts::buffer T>
         auto write(T && buff , off_t off = off_t{}) -> awaiter_of<std::size_t> auto{
             return io_context::current_context()->submit_io_task(
-                [ptr = buff.data() , len = buff.size() , off, this](io_uring_sqe * sqe){
+                [ptr = buff.data() , len = buff.size() , off, this]
+                (io_uring_sqe * sqe){
                     ::io_uring_prep_write(sqe , this->fd , ptr , len  ,off);
                 },
                 [](int res , int flag [[maybe_unused]])->std::size_t{
@@ -85,11 +88,13 @@ namespace coio{
         }
 
         //writev
+        //off_t -> (buffer...) -> awaitable<size_t>
         template<concepts::buffer ...T>
-        auto write(T && ...buff) -> awaiter_of<std::size_t> auto{
+        auto writev(off_t off , T && ...buff) -> awaiter_of<std::size_t> auto{
             return io_context::current_context()->submit_io_task(
-                [iovecs = make_iovecs(buff...) , this](io_uring_sqe * sqe){
-                    ::io_uring_prep_writev(sqe , this->fd ,iovecs.data() , iovecs.size() , 0);
+                [iovecs = make_iovecs(buff...) , this , off]
+                (io_uring_sqe * sqe){
+                    ::io_uring_prep_writev(sqe , this->fd ,iovecs.data() , iovecs.size() , off);
                 },
                 [](int res , int flag [[maybe_unused]])->std::size_t{
                     if(res < 0) throw make_system_error(-res);
