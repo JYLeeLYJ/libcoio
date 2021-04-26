@@ -4,13 +4,18 @@
 #include "future.hpp"
 #include "io_context.hpp"
 #include "time_delay.hpp"
-#include "ioutils/socket_base.hpp"
+#include "ioutils/tcp.hpp"
+#include "ioutils/udp.hpp"
 
 using namespace std::literals;
 
+static_assert( 
+    sizeof(coio::socket_base<coio::ipv4::udp>) == sizeof(coio::file_descriptor_base) + sizeof(coio::ipv4::address),
+    "empty protocol member should be optimized. ");
+
 TEST(test_sock , test_udp){
 
-    coio::address s_addr {8888};
+    coio::ipv4::address s_addr {8888};
 
     auto ctx = coio::io_context{};
     auto _  = ctx.bind_this_thread();
@@ -20,7 +25,7 @@ TEST(test_sock , test_udp){
     auto run_client = [&]() -> coio::future<void> {
         try{
             coio::udp_sock client{};
-            client.bind(coio::address{11451});
+            client.bind(coio::ipv4::address{11451});
 
             char sendbuf[] = "hello world.";
             auto n = co_await client.sendto(s_addr , coio::to_bytes(sendbuf));
@@ -37,12 +42,12 @@ TEST(test_sock , test_udp){
             coio::udp_sock server{};
             server.bind(s_addr);
 
-            EXPECT_EQ(server.local_address() , coio::address{8888});
+            EXPECT_EQ(server.local_address() , coio::ipv4::address{8888});
 
             char recvbuf[20] {};
-            coio::address addr{};
+            coio::ipv4::address addr{};
             auto n = co_await server.recvfrom(addr , coio::to_bytes(recvbuf));
-            auto expect_addr = coio::address{11451,"127.0.0.1"};
+            auto expect_addr = coio::ipv4::address{11451,"127.0.0.1"};
             EXPECT_EQ(addr, expect_addr);
             EXPECT_EQ(n , 13);
             auto s = std::string_view{recvbuf , n-1};
@@ -65,7 +70,7 @@ TEST(test_sock , test_tcp){
     auto ctx = coio::io_context{};
     auto _ = ctx.bind_this_thread();
 
-    auto s_addr = coio::address{8889};
+    auto s_addr = coio::ipv4::address{8889};
     char hello[] = {"hello world."};
     auto ptr = std::exception_ptr{};
     
@@ -73,8 +78,8 @@ TEST(test_sock , test_tcp){
         try{
         
         auto connector = coio::connector{};
-        connector.bind(coio::address{11451});
-        co_await connector.connect(coio::address{8889});
+        connector.bind(coio::ipv4::address{11451});
+        co_await connector.connect(coio::ipv4::address{8889});
 
         auto & sock = connector.socket();
         auto n = co_await sock.send(std::as_bytes(std::span{hello}));
@@ -95,7 +100,7 @@ TEST(test_sock , test_tcp){
 
         auto sock = co_await acceptor.accept();
 
-        EXPECT_EQ(sock.get_peer_address() , (coio::address{11451 , "127.0.0.1"}));
+        EXPECT_EQ(sock.get_peer_address() , (coio::ipv4::address{11451 , "127.0.0.1"}));
 
         char buf[20]{};
         auto n = co_await sock.recv(std::as_writable_bytes(std::span{buf}));
@@ -119,7 +124,7 @@ TEST(test_sock , test_tcp){
     if(ptr) std::rethrow_exception(ptr);
 }
 
-TEST(test_sock , test_sigpipe){
+TEST(test_sock , test_no_sigpipe){
     auto ctx = coio::io_context{};
     auto _ = ctx.bind_this_thread();
     auto ptr = std::exception_ptr{};

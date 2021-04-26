@@ -9,6 +9,7 @@
 #include <map>
 #include <deque>
 #include <stop_token>
+#include <cassert>
 
 #include <liburing.h>
 #include "awaitable.hpp"
