@@ -36,8 +36,18 @@ namespace coio{
 
     } // namespace concepts
 
+    template<class T>
+    auto to_const_bytes(T & t) noexcept -> concepts::buffer auto {
+        return std::as_bytes(std::span{t});
+    }
+
+    template<class T>
+    auto to_bytes(T & t) noexcept -> concepts::writeable_buffer auto {
+        return std::as_writable_bytes(std::span{t});
+    }
+
     template<concepts::buffer ...T>
-    auto make_iovecs(T &&... buff ){
+    auto make_iovecs(T &&... buff ) noexcept {
         return std::array<::iovec , sizeof...(T)>{
             ::iovec{
                 .iov_base = const_cast<void *>((const void *)buff.data()),
@@ -47,7 +57,7 @@ namespace coio{
     }
 
     template<concepts::buffer ...T>
-    requires (sizeof...(T)>3)
+    requires (sizeof...(T)>2)
     auto make_iovecs(T && ...buff){
         std::vector<::iovec> iovecs{};
         iovecs.reserve(sizeof...(T));

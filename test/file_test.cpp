@@ -18,13 +18,12 @@ TEST(test_file , test_trivally_read_write){
             //open
             auto file = co_await coio::file::openat("./tmp/test.txt" , O_CREAT|O_RDWR );
             std::string write_str{"hello world."};
-            std::span buffer = std::as_bytes(std::span{write_str});
             //write
-            int n = co_await file.write(buffer);
+            int n = co_await file.write(coio::to_bytes(write_str));
             EXPECT_EQ(n , write_str.size());
             //read
             std::array<char,16> read_buff{};
-            n = co_await file.read(std::as_writable_bytes(std::span{read_buff}));
+            n = co_await file.read(coio::to_bytes(read_buff));
             EXPECT_EQ(n , write_str.size());
             EXPECT_EQ(std::string_view(read_buff.data() , n) , "hello world."sv);
             //readv
@@ -32,8 +31,9 @@ TEST(test_file , test_trivally_read_write){
             std::array<char , 6> b2{};
             n = co_await file.readv(
                 0,
-                std::as_writable_bytes(std::span{b1}) , 
-                std::as_writable_bytes(std::span{b2}));
+                coio::to_bytes(b1),//std::as_writable_bytes(std::span{b1}) , 
+                coio::to_bytes(b2) //std::as_writable_bytes(std::span{b2})
+            );
             
             EXPECT_EQ(n , write_str.size());
             EXPECT_EQ(std::string_view(b1.data() , 6) , "hello ");

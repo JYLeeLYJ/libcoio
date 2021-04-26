@@ -5,6 +5,7 @@
 
 #include "io_context.hpp"
 #include "future.hpp"
+#include "time_delay.hpp"
 
 TEST(test_io_context , test_syscall_implement){
     io_uring_params p{};
@@ -129,6 +130,40 @@ TEST(test_io_context , test_co_spawn){
     EXPECT_TRUE(is_destory);
     EXPECT_TRUE(ctx.current_coroutine_cnt() == 0);
     ctx.run();
+}
+
+TEST(test_io_context , test_delay){
+    using namespace std::chrono_literals ;
+
+    auto ctx = coio::io_context{};
+    auto _ = ctx.bind_this_thread();
+
+    auto spec = coio::details::to_kernel_timespec(1500ms);
+    EXPECT_EQ(spec.tv_sec , 1);
+    EXPECT_EQ(spec.tv_nsec , 500 * 1000 * 1000);
+
+    auto ptr = std::exception_ptr{};
+
+    ctx.co_spawn([&]()->coio::future<void>{
+        using namespace std::chrono;
+
+        try{
+
+        auto beg = steady_clock::now();   
+        co_await coio::time_delay(123ms);
+
+        auto end = steady_clock::now();
+        auto duration = duration_cast<microseconds>(end - beg);
+        EXPECT_GE(duration.count() , 123);
+
+        }catch(...){
+            ptr = std::current_exception();
+        }
+        ctx.request_stop();
+    }());
+
+    ctx.run();
+    if(ptr) std::rethrow_exception(ptr);
 }
 
 //TODO:test sqe full
