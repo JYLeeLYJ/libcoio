@@ -10,11 +10,15 @@ namespace details{
     msghdr default_maker(iovec * iov_ptr , std::size_t iov_len){  return {};}
 }
 
+template<class Domain >
+requires concepts::protocal<typename Domain::tcp>
 class acceptor;
 
-class tcp_sock : public socket_base<ipv4::tcp>{
+template<class Domain = ipv4>
+requires concepts::protocal<typename Domain::tcp>
+class tcp_sock : public socket_base<typename Domain::tcp>{
 protected:
-    using address_t = ipv4::tcp::address_type;
+    using address_t = Domain::tcp::address_type;
 public:
 
     tcp_sock() = default ;
@@ -23,9 +27,9 @@ public:
 
 protected:
 
-    friend acceptor;
+    friend class acceptor<Domain> ;
     explicit tcp_sock(int fd ,  address_t addr = address_t{}) noexcept 
-    : socket_base(fd , addr){}
+    : socket_base<typename Domain::tcp>(fd , addr){}
 
 public:
 
@@ -95,30 +99,41 @@ public:
 
 
 //acceptor
-class acceptor : public socket_base<ipv4::tcp> {
+
+template<class Domain  = ipv4>
+requires concepts::protocal<typename Domain::tcp>
+class acceptor : public socket_base<typename Domain::tcp> {
+
+    using tcp_socket_t = tcp_sock<Domain>;
+
 public:
     
     acceptor() = default ;
+    acceptor(const Domain &) {} //for deduction
 
 public:
 
     //listen
     void listen(int max_queue = SOMAXCONN){
-        if(::listen(fd , max_queue) != 0 ) 
+        if(::listen(this->fd , max_queue) != 0 ) 
             throw make_system_error(errno);
     }
 
-    //accept
+
+    //example :
+    //  tcp_sock sock = co_await acceptor.accept();
+    //
     //address_t -> int -> awaitable[socket]
-    //TODO : flag enum
-    auto accept(int flag = 0) -> awaiter_of<tcp_sock> auto {
+    //fix: got a GCC concept bug on commented return-type constraint.
+    //TODO : flag enum 
+    auto accept(int flag = 0) /*-> awaiter_of<tcp_socket_t> auto */{
         return io_context::current_context()->submit_io_task(
             [&](io_uring_sqe *sqe){
                 ::io_uring_prep_accept( sqe , this->fd , nullptr , nullptr ,flag);
             },
-            [](int res , int flag [[maybe_unused]])-> tcp_sock{
+            [](int res , int flag )  {
                 if(res < 0) throw make_system_error(-res);
-                return tcp_sock{res};
+                return tcp_socket_t{res};
             }
         );
     }
@@ -126,10 +141,15 @@ public:
 };
 
 //connector
-class connector : public tcp_sock{
+
+template<class Domain = ipv4> 
+requires concepts::protocal<typename Domain::tcp>
+class connector : public tcp_sock<Domain>{
+    using address_t = typename tcp_sock<Domain>::address_t;
 public:
 
-    explicit connector() noexcept = default;
+    explicit connector() = default;
+    explicit connector(const Domain & ) {}  //for deduction
 
     //connect
     //awaitable[void]
@@ -144,7 +164,7 @@ public:
         );
     }
 
-    tcp_sock& socket() {
+    tcp_sock<Domain> & socket() {
         return *this;
     }
 };

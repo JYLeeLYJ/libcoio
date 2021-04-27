@@ -5,20 +5,23 @@
 
 namespace coio{
 
-class udp_sock : public socket_base<ipv4::udp>{
-    using address_t = ipv4::udp::address_type ;
+template<class Domain = ipv4>
+requires concepts::protocal<typename Domain::udp>
+class udp_sock : public socket_base<typename Domain::udp>{
+    using address_t = Domain::udp::address_type ;
 public:
     udp_sock () = default;
+    udp_sock(const Domain &) {}     // for deduction
 public:
 
     template<concepts::writeable_buffer T>
     auto recvfrom(address_t & addr , T && buff) -> awaiter_of<std::size_t> auto {
-        return recvmsg_impl(get_udp_msghdr_maker(addr) , std::forward<T>(buff));
+        return this->recvmsg_impl(get_udp_msghdr_maker(addr) , std::forward<T>(buff));
     }
 
     template<concepts::buffer T>
     auto sendto(address_t & addr , T && buff) -> awaiter_of<std::size_t> auto {
-        return sendmsg_impl(get_udp_msghdr_maker(addr) , std::forward<T>(buff));
+        return this->sendmsg_impl(get_udp_msghdr_maker(addr) , std::forward<T>(buff));
     }
 
 private:

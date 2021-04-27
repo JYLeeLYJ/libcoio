@@ -39,7 +39,7 @@ namespace details {
     //host to network
 }
 
-namespace ipv4{
+struct ipv4{
 
     struct ip_domain {
         constexpr auto domain() const {return AF_INET ;}
@@ -73,9 +73,9 @@ namespace ipv4{
         using address_type = address;
     };
     
-} //namespace ipv4
+}; //namespace ipv4
 
-namespace ipv6{
+struct ipv6{
 
     struct ip_domain {
         constexpr auto domain() const {return AF_INET6 ;}
@@ -104,9 +104,9 @@ namespace ipv6{
         using address_type = address;
     };
 
-} //namespace ipv6
+}; //namespace ipv6
 
-namespace iplocal{
+struct iplocal{
 
     struct ip_domain {
         constexpr auto domain() const {return AF_LOCAL ;}
@@ -135,7 +135,7 @@ namespace iplocal{
         using address_type = address;
     };
     
-} // namespace iplocal
+}; // namespace iplocal
 
 
 
