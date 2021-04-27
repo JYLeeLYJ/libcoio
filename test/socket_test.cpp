@@ -148,3 +148,5 @@ TEST(test_sock , test_no_sigpipe){
     ctx.run();
     if(ptr)std::rethrow_exception(ptr);
 }
+
+//TODO : test ipv6 / local socket

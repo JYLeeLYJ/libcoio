@@ -119,7 +119,7 @@ public:
             io_context * context;
             bool await_suspend(std::coroutine_handle<> continuation) {
                 if(context->is_in_local_thread()) return false;   
-                else context->post([&]()noexcept{
+                else context->post([=]()noexcept{
                     continuation.resume();
                 });
                 return true;    //suspend
@@ -198,10 +198,10 @@ public:
 private:
 
     struct entry_final_awaiter : std::suspend_always{
+        io_context * ctx;
         void await_suspend(std::coroutine_handle<> handle){
-            auto ctx = io_context::current_context();
             //erase later;
-            ctx->dispatch([=](){
+            ctx->dispatch([= , this](){
                 if(auto it = ctx->m_detach_task.find(handle);it != ctx->m_detach_task.end())
                     ctx->m_detach_task.erase(it);                
             });
@@ -214,7 +214,7 @@ private:
         // https://godbolt.org/z/anWWjb4j4
         // (void)co_await std::forward<A>(a);   // A& will also be moved here (on gcc)
         (void)co_await reinterpret_cast<A&&>(a);
-        co_await entry_final_awaiter{};
+        co_await entry_final_awaiter{.ctx = this};
     }
 
 private:

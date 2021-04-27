@@ -132,6 +132,33 @@ TEST(test_io_context , test_co_spawn){
     ctx.run();
 }
 
+TEST(test_io_context , test_schedule){
+    auto ctx = coio::io_context{};
+    auto _ = ctx.bind_this_thread();
+
+    auto ctx2 = coio::io_context{};
+    std::thread::id tid{};
+    auto f = std::async([&]{
+        auto _= ctx2.bind_this_thread();
+        tid = std::this_thread::get_id();
+        ctx2.run();
+    });
+
+    //here runs immediately
+    ctx.co_spawn([&]()->coio::future<void>{
+        co_await ctx2.schedule();
+        EXPECT_EQ(coio::io_context::current_context() , &ctx2);
+        EXPECT_EQ(std::this_thread::get_id() , tid);
+        ctx2.request_stop();
+    }());
+    f.wait();
+
+    EXPECT_EQ(ctx.current_coroutine_cnt() , 1);
+    ctx.post([&]{ctx.request_stop();});
+    ctx.run();
+    EXPECT_EQ(ctx.current_coroutine_cnt() , 0);
+}
+
 TEST(test_io_context , test_delay){
     using namespace std::chrono_literals ;
 
