@@ -16,7 +16,7 @@ namespace coio{
 
 //socket base
 template<concepts::protocal Proto >
-class socket_base : protected file_descriptor_base{
+class socket_base : public file_descriptor_base{
 public:
     using address_t = typename Proto::address_type ;
 
