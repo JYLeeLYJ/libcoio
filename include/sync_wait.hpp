@@ -15,8 +15,11 @@ namespace coio{
 
 template<concepts::awaitable A , typename R = awaitable_traits<A>::await_resume_t>
 details::awaitable_wrapper<R> make_sync_wait(A && awaitable , std::atomic<bool> & flag) {
-    co_yield co_await details::attach_callback(
-        std::forward<A>(awaitable) , 
+    co_yield details::forward_with_callback(
+        //GCC BUG TRACK : https://gcc.gnu.org/bugzilla/show_bug.cgi?id=99575
+        // https://godbolt.org/z/anWWjb4j4
+        // co_await std::forward<A>(awaitable)
+        co_await reinterpret_cast<A&&>(awaitable) ,         
         [&]() noexcept{
             if(!flag.exchange(true , std::memory_order_acq_rel))
                 std::atomic_notify_all(&flag);
@@ -27,13 +30,15 @@ details::awaitable_wrapper<R> make_sync_wait(A && awaitable , std::atomic<bool> 
 template<concepts::awaitable A , typename R = awaitable_traits<A>::await_resume_t>
 requires std::same_as<void ,R>
 details::awaitable_wrapper<void> make_sync_wait(A && awaitable ,std::atomic<bool> & flag) {
-    co_await details::attach_callback(
-        std::forward<A>(awaitable) , 
-        [&]() noexcept{
-            if(!flag.exchange(true , std::memory_order_acq_rel))
-                std::atomic_notify_all(&flag);
-        }
-    );
+    //GCC BUG TRACK : https://gcc.gnu.org/bugzilla/show_bug.cgi?id=99575
+    // https://godbolt.org/z/anWWjb4j4
+    // co_await std::forward<A>(awaitable)
+    co_await reinterpret_cast<A&&>(awaitable) ;
+    auto cb = [&]()noexcept{
+        if(!flag.exchange(true , std::memory_order_acq_rel))
+            std::atomic_notify_all(&flag);
+    };
+    co_await details::final_callback_awaiter<decltype(cb)&>{.callback = cb};
 }
 
 template<concepts::awaitable F>

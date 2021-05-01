@@ -5,10 +5,10 @@
 #include <mutex>
 #include <thread>
 #include <functional>
-#include <ranges>
 #include <map>
 #include <deque>
 #include <stop_token>
+#include <chrono>
 #include <cassert>
 
 #include <liburing.h>
@@ -250,10 +250,18 @@ private:
         //IO submit 
         if(::io_uring_sq_ready(&m_ring)>0)
             ::io_uring_submit(&m_ring);
+            // ::io_uring_submit_and_wait(&m_ring , 1);
         
-        //avoid busy loop
-        if(cnt == 0 && ++empty_cnt == 256) [[unlikely]]
-            empty_cnt = 0 , std::this_thread::yield();
+        // TODO : differ between POLL mode and normal
+        // avoid busy loop
+        if(cnt != 0) 
+            empty_cnt = 0 ;
+        else if(++empty_cnt == 16) [[unlikely]]{
+            using namespace std::chrono_literals;
+            empty_cnt = 0 ;
+            std::this_thread::sleep_for(1ms);
+        }
+            
     }
 
     void insert_entry_and_start(spawn_task && entry){

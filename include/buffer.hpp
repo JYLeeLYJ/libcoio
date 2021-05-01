@@ -6,6 +6,7 @@
 #include <concepts>
 #include <array>
 #include <vector>
+#include <span>
 #include <sys/uio.h>
 
 namespace coio{

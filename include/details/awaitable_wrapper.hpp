@@ -7,6 +7,7 @@
 #include <type_traits>
 #include <version>
 
+#include "details/callback_awaiter.hpp"
 #include "common/non_copyable.hpp"
 #include "awaitable.hpp"
 
@@ -17,14 +18,45 @@ struct void_value{};
 namespace details{
 
 template<class T>
+struct promise_base{
+    using value_type = std::remove_reference_t<T>;
+    auto yield_value( value_type && value) noexcept{
+        m_pointer = std::addressof(value);
+        return std::suspend_always{};
+    }
+
+    auto yield_value(value_type & value) noexcept{
+        m_pointer = std::addressof(value);
+        return std::suspend_always{};
+    }
+
+    template<class R , class Fn>
+    auto yield_value(with_callback<R,Fn> && ret_with_cb){
+        m_pointer = std::addressof(ret_with_cb.result);
+        return final_callback_awaiter<Fn>{.callback = ret_with_cb.fn};
+    }
+
+    decltype(auto) get() {
+        return static_cast<T&&>(*m_pointer);
+    }
+    value_type * m_pointer ;
+};
+
+template<>
+struct promise_base<void>{
+    constexpr void get() {}
+};
+
+template<class T , class CallbackT = void>
 class awaitable_wrapper : non_copyable{
 public:
-    struct promise_type{
-        using value_type = std::remove_reference_t<T>;
+
+    struct promise_type : promise_base<T>{
 
         constexpr auto initial_suspend() noexcept{
             return std::suspend_always{};
         }
+
         constexpr auto final_suspend() noexcept{
             return std::suspend_always{};
         }
@@ -35,22 +67,13 @@ public:
 
         void return_void() {}
 
-        //U = T , and enable yield_value function if T is not void
-        template<class U>
-        requires (!std::is_void_v<U> && std::is_same_v<value_type,std::remove_reference_t<U>>)
-        auto yield_value( U && value) noexcept {
-            m_pointer = std::addressof(value);
-            return std::suspend_always{};
-        }
-
         void unhandled_exception() {
             m_exception = std::current_exception();
         }
 
         decltype(auto) result() {
             check_exception();    
-            if constexpr(!std::is_void_v<T>)  
-                return static_cast<T&&>(*m_pointer);
+            return this->get();
         }
 
         void check_exception(){
@@ -58,7 +81,6 @@ public:
                 std::rethrow_exception(m_exception);
         }
 
-        value_type * m_pointer;
         std::exception_ptr m_exception;
     };
 

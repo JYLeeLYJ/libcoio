@@ -48,6 +48,10 @@ namespace coio{
             );
         }
 
+        int native_handle() {
+            return fd;
+        }
+
     protected:
         int fd{-1};
     };

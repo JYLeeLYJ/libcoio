@@ -23,13 +23,24 @@ namespace details{
     requires concepts::void_type<typename awaitable_traits<A>::await_resume_t>
     auto make_when_all_wait_task(A && a , awaitable_counter & counter )
     -> details::awaitable_wrapper<void> {
-        co_await details::attach_callback(std::forward<A>(a) ,  [&]()noexcept{counter.notify_complete_one();});
+        // GCC BUG TRACK : https://gcc.gnu.org/bugzilla/show_bug.cgi?id=99575
+        // https://godbolt.org/z/anWWjb4j4
+        // co_await std::forward<A>(a)
+        co_await reinterpret_cast<A&&>(a);
+        auto cb = [&]()noexcept{counter.notify_complete_one();};
+        co_await details::final_callback_awaiter<decltype(cb)&>{.callback = cb};
     }
 
     template<concepts::awaitable A>
     auto make_when_all_wait_task(A && a , awaitable_counter & counter)
     -> details::awaitable_wrapper<typename awaitable_traits<A>::await_resume_t>{
-        co_yield co_await details::attach_callback(std::forward<A>(a) ,  [&]()noexcept{counter.notify_complete_one();});
+        co_yield details::forward_with_callback(
+            // GCC BUG TRACK : https://gcc.gnu.org/bugzilla/show_bug.cgi?id=99575
+            // https://godbolt.org/z/anWWjb4j4
+            // co_await std::forward<A>(a)
+            co_await reinterpret_cast<A&&>(a),
+            [&]()noexcept{counter.notify_complete_one();}
+        );
     }
 
     //is a coroutine

@@ -6,6 +6,7 @@
 #include "io_context.hpp"
 #include "future.hpp"
 #include "time_delay.hpp"
+#include "when_all.hpp"
 
 TEST(test_io_context , test_syscall_implement){
     io_uring_params p{};
@@ -191,6 +192,54 @@ TEST(test_io_context , test_delay){
 
     ctx.run();
     if(ptr) std::rethrow_exception(ptr);
+}
+
+TEST(test_io_context , test_when_all_async){
+    using namespace std::chrono_literals ;
+
+    auto ctx = coio::io_context{};
+    auto _ = ctx.bind_this_thread();
+
+    uint cnt {};
+    auto make_future = [&]()->coio::future<uint>{
+        co_await coio::time_delay(100ms);
+        co_return ++cnt;
+    };
+
+    [[maybe_unused]]
+    std::vector<coio::future<uint>> fs{};
+    fs.emplace_back(make_future());
+    fs.emplace_back(make_future());
+
+    [[maybe_unused]]
+    auto task = 
+    [&]()->coio::future<void>{
+        try{
+            std::vector vs = co_await when_all(std::move(fs));  
+            EXPECT_EQ(vs.size() , cnt);
+            EXPECT_EQ(vs[0] , 1);
+            EXPECT_EQ(vs[1] , 2);
+        }catch(...){}
+        ctx.request_stop();
+        co_return;
+    };
+
+    EXPECT_EQ(cnt , 0);
+    ctx.post([&]{ 
+        ctx.co_spawn(task());
+        // warning : GOT GCC BUG on the nested lambda coroutine
+        // ctx.co_spawn([&]()->coio::future<void>{
+        //     try{
+        //         std::vector vs = co_await when_all(std::move(fs));  
+        //         EXPECT_EQ(vs.size() , cnt);
+        //         EXPECT_EQ(vs[0] , 1);
+        //         EXPECT_EQ(vs[1] , 2);
+        //     }catch(...){}
+        //     ctx.request_stop();
+        //     co_return;
+        // }());
+    });
+    ctx.run();
 }
 
 //TODO:test sqe full

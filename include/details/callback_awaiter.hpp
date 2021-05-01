@@ -7,46 +7,25 @@ namespace coio{
 
 namespace details{
 
-template<concepts::awaitable A , class Fn>
-requires std::is_nothrow_invocable_r_v<void , Fn>
-struct callback_awaiter{
-    using awaiter_t = typename awaitable_traits<A&&>::awaiter_t;
-    Fn m_callback;
-    awaiter_t m_awaiter;
-
-    callback_awaiter(A && awaitable , Fn && callback_fn) 
-    :m_callback(std::forward<Fn>(callback_fn)) 
-    ,m_awaiter(get_awaiter(std::forward<A>(awaitable))) {}
-
-    bool await_ready() noexcept{
-        return static_cast<awaiter_t &&>(m_awaiter).await_ready();
-    }
-
-    template<class P>
-    decltype(auto) await_suspend(std::coroutine_handle<P> handle) 
-    noexcept (noexcept(static_cast<awaiter_t &&>(m_awaiter).await_suspend(handle))){
-        return static_cast<awaiter_t &&>(m_awaiter).await_suspend(handle);
-    }
-
-    decltype(auto) await_resume()
-    noexcept(noexcept(static_cast<awaiter_t&&>(m_awaiter).await_resume())){
-        if constexpr (std::is_void_v<typename awaitable_traits<A&&>::await_result_t>){
-            static_cast<awaiter_t&&>(m_awaiter).await_resume();
-            m_callback();
-        }
-        else {
-            decltype(auto) result = static_cast<awaiter_t&&>(m_awaiter).await_resume();
-            m_callback();
-            return result;
-        }
+template<class Fn>
+struct final_callback_awaiter : std::suspend_always{
+    [[no_unique_address]]
+    Fn callback;
+    void await_suspend(std::coroutine_handle<>) noexcept{
+        callback();
     }
 };
 
-template<class Awaitable , class Fn>
-auto attach_callback(Awaitable && awaitable , Fn && fn){
-    return callback_awaiter<Awaitable && , std::remove_reference_t<Fn>>{
-        std::forward<Awaitable>(awaitable) , 
-        std::forward<Fn>(fn)};
+template<class T , class Fn>
+struct with_callback{
+    T result ;
+    [[no_unique_address]]
+    Fn fn ;
+};
+
+template<class T , class Fn>
+auto forward_with_callback(T && value , Fn && fn ){
+    return with_callback<T& , Fn&>{value , fn};
 }
 
 }

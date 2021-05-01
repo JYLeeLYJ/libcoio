@@ -90,6 +90,7 @@ namespace coio{
             return get();
         }
 
+        //note : this rval reference return is safe
         T&& result() && {
             return std::move(get());
         }
