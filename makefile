@@ -1,6 +1,6 @@
 
 CPPSTD := -std=c++20
-OPT := -O0 -fcoroutines -g #-ftime-report 
+OPT := -O3 -fcoroutines -g #-ftime-report 
 INCLUDE := $(CURDIR)/include
 DEFINE := 
 WARNING := -Wall -Werror
