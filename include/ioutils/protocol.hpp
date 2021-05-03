@@ -54,7 +54,9 @@ struct ipv4{
             if(ip)::inet_pton(ip_domain{}.domain() , ip , &addr.sin_addr);
             else addr.sin_addr.s_addr = INADDR_ANY ;
         }
-        sockaddr * ptr() { return reinterpret_cast<sockaddr*>(&addr); }
+        sockaddr * ptr()  { return reinterpret_cast<sockaddr*>(&addr); }
+        const 
+        sockaddr * ptr() const {return reinterpret_cast<const sockaddr*>(&addr); }
         constexpr 
         socklen_t  len() const {return sizeof(sockaddr_in); }
 
@@ -62,6 +64,12 @@ struct ipv4{
             return addr.sin_family == other.addr.sin_family 
                 && addr.sin_addr.s_addr == other.addr.sin_addr.s_addr 
                 && addr.sin_port == other.addr.sin_port ;
+        }
+
+        std::string to_string() {
+            char buf[INET_ADDRSTRLEN] {};
+            ::inet_ntop(ip_domain{}.domain() , ptr() , buf , INET_ADDRSTRLEN );
+            return std::string{buf};
         }
     };
 
@@ -90,10 +98,18 @@ struct ipv6{
             else addr.sin6_addr = IN6ADDR_ANY_INIT;
         }
         sockaddr * ptr() { return reinterpret_cast<sockaddr*>(&addr); }
+        const
+        sockaddr * ptr() const {return reinterpret_cast<const sockaddr*>(&addr);}
         constexpr 
         socklen_t  len() const {return sizeof(sockaddr_in); }
 
         constexpr bool operator == (const address & other ) const noexcept = default;
+
+        std::string to_string() const {
+            static thread_local char buf[INET6_ADDRSTRLEN ] {};
+            inet_ntop(ip_domain{}.domain() , ptr() , buf , INET6_ADDRSTRLEN );
+            return std::string{buf};
+        }
     };
 
     struct tcp : ip_domain , details::tcp_type{
@@ -119,11 +135,16 @@ struct iplocal{
             strncpy(addr.sun_path , path , sizeof(addr.sun_path));
         }
         sockaddr * ptr() { return reinterpret_cast<sockaddr*>(&addr); }
+        const
+        sockaddr * ptr() const {return reinterpret_cast<const sockaddr*>(&addr);}
         constexpr 
         socklen_t  len() const {return sizeof(sockaddr_in); }
 
         constexpr bool operator == (const address & other ) const noexcept {
             return strcmp(addr.sun_path , other.addr.sun_path) == 0;
+        }
+        std::string to_string() const  {
+            return std::string{addr.sun_path};
         }
     };
 
