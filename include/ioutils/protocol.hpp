@@ -49,8 +49,8 @@ struct ipv4{
 
         sockaddr_in addr{.sin_family = AF_INET };
         explicit address () noexcept = default;
-        explicit address( int port , const char * ip = nullptr) noexcept{
-            addr.sin_port = port; 
+        explicit address( uint16_t port , const char * ip = nullptr) noexcept{
+            addr.sin_port = ::htons(port); 
             if(ip)::inet_pton(ip_domain{}.domain() , ip , &addr.sin_addr);
             else addr.sin_addr.s_addr = INADDR_ANY ;
         }
@@ -66,10 +66,10 @@ struct ipv4{
                 && addr.sin_port == other.addr.sin_port ;
         }
 
-        std::string to_string() {
+        std::string to_string() const {
             char buf[INET_ADDRSTRLEN] {};
-            ::inet_ntop(ip_domain{}.domain() , ptr() , buf , INET_ADDRSTRLEN );
-            return std::string{buf};
+            ::inet_ntop(ip_domain{}.domain() , &addr.sin_addr , buf , INET_ADDRSTRLEN );
+            return std::string{buf}.append(":") + std::to_string(::ntohs(addr.sin_port));
         }
     };
 
@@ -93,7 +93,7 @@ struct ipv6{
         sockaddr_in6 addr{.sin6_family = AF_INET6 };
         explicit address () noexcept = default;
         explicit address (uint16_t port , const char * ip = nullptr) noexcept {
-            addr.sin6_port = port  ;
+            addr.sin6_port = ::htons(port)  ;
             if(ip)::inet_pton(ip_domain{}.domain() , ip , &addr.sin6_addr);
             else addr.sin6_addr = IN6ADDR_ANY_INIT;
         }
@@ -107,8 +107,8 @@ struct ipv6{
 
         std::string to_string() const {
             static thread_local char buf[INET6_ADDRSTRLEN ] {};
-            inet_ntop(ip_domain{}.domain() , ptr() , buf , INET6_ADDRSTRLEN );
-            return std::string{buf};
+            inet_ntop(ip_domain{}.domain() , &addr.sin6_addr, buf , INET6_ADDRSTRLEN );
+            return std::string{buf}.append(":") + std::to_string(::ntohs(addr.sin6_port));
         }
     };
 

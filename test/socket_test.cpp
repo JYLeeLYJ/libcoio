@@ -13,6 +13,12 @@ static_assert(
     sizeof(coio::socket_base<coio::ipv4::udp>) == sizeof(coio::file_descriptor_base) + sizeof(coio::ipv4::address),
     "empty protocol member should be optimized. ");
 
+TEST(test_sock , test_address){
+    coio::ipv4::address addr_v4{2001,"127.0.0.1"};
+    EXPECT_EQ(addr_v4.len() , sizeof(addr_v4.addr));
+    EXPECT_EQ(addr_v4.to_string() , "127.0.0.1:2001");
+}
+
 TEST(test_sock , test_udp){
 
     coio::ipv4::address s_addr {8888};
