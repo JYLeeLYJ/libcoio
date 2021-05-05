@@ -16,6 +16,7 @@ all: $(OBJS)
 	$(CXX) $(TMP_DIR)/client.o -o $(OUT_DIR)/pingpong_client $(LINK)
 	$(CXX) $(TMP_DIR)/server.o -o $(OUT_DIR)/pingpong_server $(LINK)
 	cp test.sh $(OUT_DIR)
+	cd $(OUT_DIR) && ./test.sh	
 
 $(TMP_DIR)/%.o : $(SRC_DIR)/%.cpp
 	$(CXX) $< -o $@ -c $(CXXFLAGS) -MMD -MF $@.d

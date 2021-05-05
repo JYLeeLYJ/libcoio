@@ -13,16 +13,20 @@ using coio::future , coio::io_context ;
 using coio::tcp_sock , coio::ipv4 , coio::connector ;
 using coio::to_bytes , coio::to_const_bytes , coio::when_all;
 
+constexpr uint64_t KB = 1024;
+constexpr uint64_t MB = 1024 * 1024;
+
 future<uint64_t> client( io_context & ctx , uint times) {
     uint64_t bytes_read {};
-    uint64_t expect_read = 1024* times;
+    [[maybe_unused]]
+    uint64_t expect_read = KB* times;
 
     try{
 
     auto conn = connector{};
     co_await conn.connect(ipv4::address{8888});
     auto &sock = conn.socket();
-    auto buff = std::vector<std::byte>(1024);
+    auto buff = std::vector<std::byte>(KB);
 
     while(times --){
         [[maybe_unused]]
@@ -32,13 +36,18 @@ future<uint64_t> client( io_context & ctx , uint times) {
         bytes_read+= m;
     }
 
-    }catch(...){
+    }catch(const std::exception & e){
+        std::cout << "exception : " << e.what() << std::endl;
     }
 
-    std::cout << "total read " << bytes_read<< std::endl;
-    std::cout << "expect " << expect_read << std::endl;
+    // std::cout << "total read " << bytes_read<< std::endl;
+    // std::cout << "expect " << expect_read << std::endl;
+    // assert(bytes_read != expect_read );
     co_return bytes_read;
 } 
+
+std::atomic<double>  g_throughput {0.0};
+std::atomic<int> thread_id {0};
 
 void start(uint conns , uint times , std::atomic<uint64_t> & bytes){
     
@@ -47,13 +56,27 @@ void start(uint conns , uint times , std::atomic<uint64_t> & bytes){
     
     auto task = 
         [&]()->future<void>{
-            //TODO : time set
+            using namespace std::chrono;
             std::vector<future<uint64_t>> futures;
+            //for all connections
             while(conns -- ){
                 futures.emplace_back(client(ctx , times));
             }
+            
+            auto beg = steady_clock::now();
             auto results = co_await when_all(std::move(futures));
-            bytes+= std::accumulate(results.begin() , results.end(), 0 );
+            auto end = steady_clock::now();
+            
+            auto this_bytes = std::accumulate(results.begin() , results.end(), 0ull );
+            auto cost_tm = duration_cast<milliseconds>(end-beg) ;
+            auto this_throughput = (this_bytes / 1024.0) / cost_tm.count() ;
+            g_throughput += this_throughput;
+            bytes += this_bytes;
+
+            std::cout 
+                << "thread" << ++thread_id << " pingpong cost " << cost_tm.count() << " ms , "
+                << "throughput " << this_throughput << " MB/S" << std::endl;
+
             ctx.request_stop();
         };
 
@@ -70,7 +93,7 @@ int main(int argc , char * argv[]){
     if(argc!= 4) {
         std::cout << "[error] expect use : client <thread_cnt>  <echo times>  <connection per thread>\n" ;
         std::cout << "got : ";
-        for(int i = 0 ; i < argc ; ++ i) std::cout << argv[i] ;
+        for(int i = 0 ; i < argc ; ++ i) std::cout << argv[i] << " ";
         std::cout << std::endl;
         return 1;
     }
@@ -85,14 +108,15 @@ int main(int argc , char * argv[]){
 
     //co_spawn all
     std::vector<std::thread> tds {};
-    std::atomic<uint64_t> cnt{};
-    while(thread_cnt --){
+    std::atomic<uint64_t> bytes{};
+    auto cnt = thread_cnt;
+    while(cnt --){
         tds.emplace_back(std::thread([&]{
-            start(connect_ptd , echo_times , cnt);
+            start(connect_ptd , echo_times , bytes);
         }));
     }
 
     for(auto & t : tds) t.join();
 
-    //TODO : print result.
+    std::cout << thread_cnt << " threads client throughput = " << g_throughput.load() << " MB/s , read " << bytes << " bytes."<< std::endl;
 }

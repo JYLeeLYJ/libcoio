@@ -9,37 +9,40 @@ using coio::tcp_sock , coio::ipv4 , coio::acceptor ;
 using coio::to_bytes , coio::to_const_bytes;
 
 future<void> start_session(tcp_sock<> sock , std::atomic<uint32_t> & bytes_read) {
+    // std::cout << "accept connection : " << sock.get_peer_address().to_string() << std::endl; 
     uint32_t read_cnt {};
     try{
     auto buff = std::vector<std::byte>(1024);
     while(true){
         auto n = co_await sock.recv(buff);
-        // std::cout << "recv " << n <<std::endl; 
         if(n == 0) break;
-        auto m = co_await sock.send(buff);
-        // std::cout << "send " << m <<std::endl; 
+        auto m = co_await sock.send(std::span{buff.begin() , n});
         assert(m == n);
         read_cnt += n;
     }
     }catch(const std::exception & e){
-        printf("exception : %s \n" , e.what());
+        std::cout << "exception : " <<  e.what() << std::endl ;
     }
     bytes_read += read_cnt;
 }
 
 future<uint32_t> server(io_context & ctx , std::atomic<uint32_t> & bytes_read){
-    auto accpt = acceptor{};
-    accpt.bind(ipv4::address{8888});
-    accpt.listen();
-    while(true){
-        auto sock = co_await accpt.accept();
-        ctx.co_spawn(start_session(std::move(sock) , bytes_read));
+    try{
+        auto accpt = acceptor{};
+        accpt.bind(ipv4::address{8888});
+        accpt.listen();
+        while(true){
+            auto sock = co_await accpt.accept();
+            ctx.co_spawn(start_session(std::move(sock) , bytes_read));
+        }
+    }catch(const std::exception & e){
+        std::cout << "exception : " <<  e.what() << std::endl ;
     }
 }
 
 int main(int argc , char * argv[]){
     if(argc!= 2) {
-        puts("error .\n expect use : server <thread_cnt> ");
+        puts("[error] \n expect parameter : server <thread_cnt> ");
         return 1;
     }
 
