@@ -19,6 +19,7 @@ namespace details{
     template<class T>
     using non_void_result_t = non_void_result_impl<typename awaitable_traits<T>::await_result_t>;
 
+    //TODO : complete when exception
     template<concepts::awaitable A>
     requires concepts::void_type<typename awaitable_traits<A>::await_resume_t>
     auto make_when_all_wait_task(A && a , awaitable_counter & counter )

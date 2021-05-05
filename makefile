@@ -22,7 +22,7 @@ clean :
 	rm -rf tmp/*.d
 
 test:
-	make -C ./test test 
+	+make -C ./test test 
 
 example :
-	make -C ./example 
+	+make -C ./example 

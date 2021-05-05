@@ -13,6 +13,8 @@
 
 namespace coio{
 
+//TODO : complete when exception
+
 template<concepts::awaitable A , typename R = awaitable_traits<A>::await_resume_t>
 details::awaitable_wrapper<R> make_sync_wait(A && awaitable , std::atomic<bool> & flag) {
     co_yield details::forward_with_callback(

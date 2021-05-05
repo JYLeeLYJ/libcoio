@@ -1,3 +1,3 @@
 
 example : 
-	make -C ./pingpong all
+	+make -C ./pingpong all

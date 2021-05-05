@@ -41,23 +41,25 @@ future<uint32_t> server(io_context & ctx , std::atomic<uint32_t> & bytes_read){
 }
 
 int main(int argc , char * argv[]){
-    if(argc!= 2) {
-        puts("[error] \n expect parameter : server <thread_cnt> ");
-        return 1;
-    }
+    // if(argc!= 2) {
+    //     puts("[error] \n expect parameter : server <thread_cnt> ");
+    //     return 1;
+    // }
 
-    auto thread_cnt = std::atoi(argv[1]);
-    assert(thread_cnt > 0);
-    
     std::atomic<uint32_t> cnt{};
-    auto tds = std::vector<std::thread>(thread_cnt);
-    for(auto & t : tds ){
-        t = std::thread([&](){
-            io_context ctx{};
-            auto _ = ctx.bind_this_thread();
-            ctx.co_spawn(server(ctx, cnt));
-            ctx.run();   
-        });
-    }
-    for(auto & t : tds) t.join();
+
+    // auto thread_cnt = std::atoi(argv[1]);
+    // assert(thread_cnt > 0);
+    // auto tds = std::vector<std::thread>(thread_cnt);
+    // for(auto & t : tds ){
+    //     t = std::thread([&](){
+
+    io_context ctx{};
+    auto _ = ctx.bind_this_thread();
+    ctx.co_spawn(server(ctx, cnt));
+    ctx.run();
+
+        // });
+    // }
+    // for(auto & t : tds) t.join();
 }

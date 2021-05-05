@@ -28,6 +28,17 @@ namespace concepts{
         std::copy_constructible<F>;  //std::function requires
 }
 
+
+inline constexpr auto invalid_cpuno = std::numeric_limits<uint32_t>::max();
+
+struct ctx_opt{
+    uint32_t ring_size {4096};                  //ring should be power of 2 . 
+    uint32_t sq_cpu_affinity{invalid_cpuno};    //set cpu affinity for kernel sq thread 
+    uint32_t sq_poll_idle{};                    //set sq thread empty polling timeout  
+    bool sq_polling{false};                     //enable kernel sq thread polling
+    bool io_polling{false};                     //enable io polling instead of hardwa
+};
+
 //execution context
 class io_context : non_copyable{
 private:
@@ -46,8 +57,10 @@ public:
     }
 
 public:
-    explicit io_context(unsigned uring_size = 8 * 1024 ){
-        if(auto ret = ::io_uring_queue_init(uring_size , &m_ring, 0 ) ; ret < 0)
+    explicit io_context( ctx_opt option = {}){
+        auto params = make_params(option);
+        auto ret = ::io_uring_queue_init_params(option.ring_size , &m_ring , &params);
+        if(ret < 0)
             throw std::system_error{-ret , std::system_category()};
     }
     ~io_context(){
@@ -69,6 +82,10 @@ public:
         return this_thread_context == this;
     }
 
+    bool is_polling_mode() const noexcept {
+        return m_ring.flags & (IORING_SETUP_SQPOLL | IORING_SETUP_IOPOLL);
+    }
+
     void run(){
         m_is_stopped = false;
         assert_bind();
@@ -86,6 +103,11 @@ public:
 
     void request_stop() noexcept{
         m_is_stopped = true;
+    }
+
+    //test if this feature is supported by io_uring 
+    bool test_feature(unsigned fea) const noexcept{
+        return m_ring.features & fea ;
     }
 
     //put task into queue .
@@ -213,11 +235,27 @@ private:
         //GCC BUG TRACK : https://gcc.gnu.org/bugzilla/show_bug.cgi?id=99575
         // https://godbolt.org/z/anWWjb4j4
         // (void)co_await std::forward<A>(a);   // A& will also be moved here (on gcc)
+        try{
         (void)co_await reinterpret_cast<A&&>(a);
+        }catch(...){}
         co_await entry_final_awaiter{.ctx = this};
     }
 
 private:
+
+    io_uring_params make_params(const ctx_opt & option){
+        io_uring_params params{};
+        if(option.io_polling) params.flags |= IORING_SETUP_IOPOLL;
+        if(option.sq_polling) {
+            params.flags |= IORING_SETUP_SQPOLL;
+            if(option.sq_cpu_affinity != invalid_cpuno
+            && option.sq_cpu_affinity < std::thread::hardware_concurrency()) 
+                params.flags |= IORING_SETUP_SQ_AFF;
+            params.sq_thread_cpu = option.sq_cpu_affinity;
+            params.sq_thread_idle = option.sq_poll_idle;
+        }
+        return params;
+    }
 
     void assert_bind(){
         if(!this_thread_context) 
@@ -248,18 +286,17 @@ private:
         cnt+= resolve_local_task();
 
         //IO submit 
-        if(::io_uring_sq_ready(&m_ring)>0)
-            ::io_uring_submit(&m_ring);
-            // ::io_uring_submit_and_wait(&m_ring , 1);
+        ::io_uring_submit(&m_ring);
         
         // TODO : differ between POLL mode and normal
         // avoid busy loop
         if(cnt != 0) 
             empty_cnt = 0 ;
-        else if(++empty_cnt == 16) [[unlikely]]{
+        else if(++empty_cnt == 64) [[unlikely]]{
             using namespace std::chrono_literals;
             empty_cnt = 0 ;
-            std::this_thread::sleep_for(1ms);
+            // std::this_thread::sleep_for(1ms);
+            std::this_thread::yield();
         }
             
     }

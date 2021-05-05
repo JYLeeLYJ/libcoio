@@ -238,3 +238,5 @@ TEST(test_future , test_move_and_copy_counting){
     EXPECT_EQ(copyn , 0);
     EXPECT_EQ(moven , 1);
 }
+
+//TODO : test when_all / sync_wait when exception occur 
