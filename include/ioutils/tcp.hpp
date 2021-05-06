@@ -124,7 +124,6 @@ public:
             throw make_system_error(errno);
     }
 
-
     //example :
     //  tcp_sock sock = co_await acceptor.accept();
     //
