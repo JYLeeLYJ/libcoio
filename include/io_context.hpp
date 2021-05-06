@@ -15,6 +15,7 @@
 #include "awaitable.hpp"
 #include "common/non_copyable.hpp"
 #include "common/scope_guard.hpp"
+#include "system_error.hpp"
 #include "details/awaitable_wrapper.hpp"
 
 namespace coio{
@@ -34,7 +35,7 @@ inline constexpr auto invalid_cpuno = std::numeric_limits<uint32_t>::max();
 struct ctx_opt{
     uint32_t ring_size {4096};                  //ring should be power of 2 . 
     uint32_t sq_cpu_affinity{invalid_cpuno};    //set cpu affinity for kernel sq thread 
-    uint32_t sq_poll_idle{};                    //set sq thread empty polling timeout  
+    uint32_t sq_poll_idle{100};                 //set sq thread empty polling timeout  
     bool sq_polling{false};                     //enable kernel sq thread polling
     bool io_polling{false};                     //enable io polling instead of hardwa
 };
@@ -61,8 +62,11 @@ public:
         auto params = make_params(option);
         auto ret = ::io_uring_queue_init_params(option.ring_size , &m_ring , &params);
         if(ret < 0)
-            throw std::system_error{-ret , std::system_category()};
+            throw make_system_error(-ret);
+
+        ::io_uring_ring_dontfork(&m_ring);
     }
+
     ~io_context(){
         ::io_uring_queue_exit(&m_ring);
     }
@@ -82,23 +86,31 @@ public:
         return this_thread_context == this;
     }
 
-    bool is_polling_mode() const noexcept {
-        return m_ring.flags & (IORING_SETUP_SQPOLL | IORING_SETUP_IOPOLL);
+    bool is_enable_sqpoll() const noexcept{
+        return m_ring.flags & IORING_SETUP_SQPOLL;
+    }
+
+    bool is_enable_iopoll() const noexcept{
+        return m_ring.flags & IORING_SETUP_IOPOLL;
     }
 
     void run(){
-        m_is_stopped = false;
-        assert_bind();
-        while(!m_is_stopped) run_once();
+        loop([this](std::size_t cnt) { 
+            nonpoll_submit(cnt); }
+        );
+    }
+
+    void poll(){
+        loop([this](std::size_t cnt){
+            poll_submit(cnt);
+        });
     }
 
     //can be stopped by io_context itself or stop_token
     void run(std::stop_token token){
-        m_is_stopped = false;
-        assert_bind();
-        while(!m_is_stopped && !token.stop_requested()){
-            run_once();
-        }
+        loop([this](std::size_t cnt){
+            nonpoll_submit(cnt);
+        },token);
     }
 
     void request_stop() noexcept{
@@ -249,7 +261,7 @@ private:
         if(option.sq_polling) {
             params.flags |= IORING_SETUP_SQPOLL;
             if(option.sq_cpu_affinity != invalid_cpuno
-            && option.sq_cpu_affinity < std::thread::hardware_concurrency()) 
+            && option.sq_cpu_affinity < std::thread::hardware_concurrency()) // TODO : Need test
                 params.flags |= IORING_SETUP_SQ_AFF;
             params.sq_thread_cpu = option.sq_cpu_affinity;
             params.sq_thread_idle = option.sq_poll_idle;
@@ -268,37 +280,65 @@ private:
             throw std::logic_error{"io_context cannot invoke run() on multi-threads."};
     }
 
-    void run_once(){
-        thread_local unsigned empty_cnt{0};
+    std::size_t run_once(){
+        // thread_local unsigned empty_cnt{0};
         std::size_t cnt{};
 
         //process IO complete
         cnt+= ::io_uring_cq_ready(&m_ring);
         for_each_cqe([this](io_uring_cqe * cqe) noexcept{
             auto result = reinterpret_cast<async_result*>(::io_uring_cqe_get_data(cqe));
-            assert(result);
-            result->set_result(cqe->res , cqe->flags);
-            result->resume();
-            //TODO: define runtime error ? callback not found .
+            // assert(result);
+            if(result){
+                result->set_result(cqe->res , cqe->flags);
+                result->resume();
+            }
         });
 
+        //resolve post tasks
+        cnt+= resolve_remote_coroutine();
         cnt+= resolve_remote_task();
         cnt+= resolve_local_task();
 
-        //IO submit 
+        return cnt;
+    }
+
+    template<class F>
+    void loop(F && f){
+        m_is_stopped = false;
+        assert_bind();
+        while(!m_is_stopped){
+            f( run_once() );
+        }
+    }
+
+    template<class F>
+    void loop(F && f , std::stop_token token){
+        m_is_stopped = false;
+        assert_bind();
+        while(!m_is_stopped && !token.stop_requested()){
+            f( run_once() );
+        }
+    }
+
+    void nonpoll_submit(std::size_t cnt[[maybe_unused]]){
+        static auto _1ms =  __kernel_timespec{.tv_sec = 0 , .tv_nsec = 1000 * 1000};    
+        //TODO : use eventfd to notice encounting remote task, instead of timer 
+        auto sqe = ::io_uring_get_sqe(&m_ring);
+        ::io_uring_prep_timeout(sqe , &_1ms , 0 ,0 );
+        ::io_uring_sqe_set_data(sqe , nullptr);
+        ::io_uring_submit_and_wait(&m_ring , 1);
+    }
+
+    void poll_submit(std::size_t cnt){
         ::io_uring_submit(&m_ring);
-        
-        // TODO : differ between POLL mode and normal
-        // avoid busy loop
-        if(cnt != 0) 
-            empty_cnt = 0 ;
-        else if(++empty_cnt == 64) [[unlikely]]{
-            using namespace std::chrono_literals;
-            empty_cnt = 0 ;
-            // std::this_thread::sleep_for(1ms);
+
+        static thread_local std::size_t empty_cnt {} ;
+        if(cnt != 0) empty_cnt = 0;
+        else if( ++ empty_cnt == 64 ) [[unlikely]]{
+            empty_cnt = 0;
             std::this_thread::yield();
         }
-            
     }
 
     void insert_entry_and_start(spawn_task && entry){
@@ -307,8 +347,8 @@ private:
         handle.resume();
     }
 
-    void resolve_remote_coroutine(){
-        if(m_remote_co_spwan.empty()) return ;
+    std::size_t resolve_remote_coroutine(){
+        if(m_remote_co_spwan.empty()) return 0;
         std::vector<spawn_task> tasks{};
         {
         std::lock_guard guard{m_mutex};
@@ -318,6 +358,7 @@ private:
         for(auto & entry : tasks){
             insert_entry_and_start(std::move(entry));
         }
+        return tasks.size();
     }
 
     std::size_t resolve_remote_task(){

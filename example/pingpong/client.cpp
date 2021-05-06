@@ -8,6 +8,7 @@
 #include "io_context.hpp"
 #include "ioutils/tcp.hpp"
 #include "when_all.hpp"
+#include "time_delay.hpp"
 
 using coio::future , coio::io_context ;
 using coio::tcp_sock , coio::ipv4 , coio::connector ;
@@ -15,6 +16,8 @@ using coio::to_bytes , coio::to_const_bytes , coio::when_all;
 
 constexpr uint64_t KB = 1024;
 constexpr uint64_t MB = 1024 * 1024;
+
+uint16_t g_server_port{};
 
 future<uint64_t> client( io_context & ctx , uint times) {
     uint64_t bytes_read {};
@@ -24,7 +27,8 @@ future<uint64_t> client( io_context & ctx , uint times) {
     try{
 
     auto conn = connector{};
-    co_await conn.connect(ipv4::address{8888});
+    conn.set_no_delay();
+    co_await conn.connect(ipv4::address{g_server_port});
     auto &sock = conn.socket();
     auto buff = std::vector<std::byte>(KB);
 
@@ -49,15 +53,27 @@ future<uint64_t> client( io_context & ctx , uint times) {
 std::atomic<double>  g_throughput {0.0};
 std::atomic<int> thread_id {0};
 
+// future<void> show(int tid , std::atomic<uint64_t> & bytes){
+//     while(true){
+//         using namespace std::chrono_literals;
+//         co_await coio::time_delay(1s);
+//         std::cout << "thread " << tid << "read bytes " << bytes << std::endl;
+//     }
+// }
+
 void start(uint conns , uint times , std::atomic<uint64_t> & bytes){
     
-    auto ctx = io_context{};
+    auto ctx = io_context{
+        // coio::ctx_opt{.sq_polling = true}
+    };
     auto _ = ctx.bind_this_thread();
-    
+    auto this_tid = ++thread_id ;
     auto task = 
         [&]()->future<void>{
             using namespace std::chrono;
             std::vector<future<uint64_t>> futures;
+            // uint64_t this_bytes = 0;
+
             //for all connections
             while(conns -- ){
                 futures.emplace_back(client(ctx , times));
@@ -74,7 +90,7 @@ void start(uint conns , uint times , std::atomic<uint64_t> & bytes){
             bytes += this_bytes;
 
             std::cout 
-                << "thread" << ++thread_id << " pingpong cost " << cost_tm.count() << " ms , "
+                << "thread" << this_tid << " pingpong cost " << cost_tm.count() << " ms , "
                 << "throughput " << this_throughput << " MB/S" << std::endl;
 
             ctx.request_stop();
@@ -82,7 +98,9 @@ void start(uint conns , uint times , std::atomic<uint64_t> & bytes){
 
     ctx.post([&]{
         ctx.co_spawn(task());
+        // ctx.co_spawn(show(this_tid ,bytes));
     });
+    // ctx.poll();
     ctx.run();
 }
 
@@ -90,8 +108,8 @@ void start(uint conns , uint times , std::atomic<uint64_t> & bytes){
 int main(int argc , char * argv[]){
 
     //read params "client <thread cnt> <pingpong times> <connection/thread>"
-    if(argc!= 4) {
-        std::cout << "[error] expect use : client <thread_cnt>  <echo times>  <connection per thread>\n" ;
+    if(argc!= 5) {
+        std::cout << "[error] expect use : client <thread_cnt>  <echo times>  <connection per thread> <server port>\n" ;
         std::cout << "got : ";
         for(int i = 0 ; i < argc ; ++ i) std::cout << argv[i] << " ";
         std::cout << std::endl;
@@ -101,10 +119,12 @@ int main(int argc , char * argv[]){
     auto thread_cnt = std::atoi(argv[1]);
     auto echo_times = std::atoi(argv[2]);
     auto connect_ptd= std::atoi(argv[3]);
+    g_server_port = std::atoi(argv[4]);
 
     assert(connect_ptd > 0);
     assert(thread_cnt > 0);
     assert(echo_times > 0);
+    assert(g_server_port > 0);
 
     //co_spawn all
     std::vector<std::thread> tds {};

@@ -2,6 +2,7 @@
 #include <thread>
 #include <iostream>
 #include "ioutils/tcp.hpp"
+#include "common/cpu_affinity.hpp"
 #include "future.hpp"
 
 using coio::future , coio::io_context ;
@@ -10,6 +11,7 @@ using coio::to_bytes , coio::to_const_bytes;
 
 future<void> start_session(tcp_sock<> sock , std::atomic<uint32_t> & bytes_read) {
     // std::cout << "accept connection : " << sock.get_peer_address().to_string() << std::endl; 
+    sock.set_no_delay();
     uint32_t read_cnt {};
     try{
     auto buff = std::vector<std::byte>(1024);
@@ -30,6 +32,7 @@ future<uint32_t> server(io_context & ctx , std::atomic<uint32_t> & bytes_read){
     try{
         auto accpt = acceptor{};
         accpt.bind(ipv4::address{8888});
+        // accpt.set_reuse_port();
         accpt.listen();
         while(true){
             auto sock = co_await accpt.accept();
@@ -54,10 +57,13 @@ int main(int argc , char * argv[]){
     // for(auto & t : tds ){
     //     t = std::thread([&](){
 
-    io_context ctx{};
+    io_context ctx{
+        // coio::ctx_opt{.sq_cpu_affinity = 1 , .sq_polling = true}
+    };
     auto _ = ctx.bind_this_thread();
     ctx.co_spawn(server(ctx, cnt));
     ctx.run();
+    // ctx.poll();
 
         // });
     // }
