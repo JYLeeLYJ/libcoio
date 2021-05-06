@@ -84,7 +84,7 @@ TEST(test_sock , test_tcp){
         try{
         
         auto connector = coio::connector{};
-        connector.bind(coio::ipv4::address{11451});
+        connector.bind(coio::ipv4::address{11454});
         co_await connector.connect(coio::ipv4::address{8889});
 
         auto & sock = connector.socket();
@@ -106,7 +106,7 @@ TEST(test_sock , test_tcp){
 
         auto sock = co_await acceptor.accept();
 
-        EXPECT_EQ(sock.get_peer_address() , (coio::ipv4::address{11451 , "127.0.0.1"}));
+        EXPECT_EQ(sock.get_peer_address() , (coio::ipv4::address{11454 , "127.0.0.1"}));
 
         char buf[20]{};
         auto n = co_await sock.recv(std::as_writable_bytes(std::span{buf}));

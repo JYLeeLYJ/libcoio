@@ -2,6 +2,7 @@
 #define COIO_FILE_BASE_HPP
 
 #include <liburing.h>
+#include <fcntl.h>
 #include <unistd.h>
 #include "common/non_copyable.hpp"
 #include "io_context.hpp"
@@ -34,6 +35,12 @@ namespace coio{
             return *this;
         }
     public:
+
+        void set_non_block() {
+            int flags = ::fcntl(fd, F_GETFL, 0);
+            ::fcntl(fd, F_SETFL, flags|O_NONBLOCK);
+        }
+
         //async close
         //will invaild fd after successfully closed
         auto close() -> awaiter_of<void> auto{

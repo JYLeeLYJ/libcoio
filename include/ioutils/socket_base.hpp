@@ -35,7 +35,19 @@ public:
 
 public:
     
-    void bind(address_t addr){
+    void set_reuse_address() {
+        int reuse = 1;
+        int ret = ::setsockopt(file_descriptor_base::fd , SOL_SOCKET , SO_REUSEADDR , &reuse , sizeof(int));
+        if(ret != 0) throw make_system_error(errno);
+    }
+
+    void set_reuse_port(){
+        int reuse = 1;
+        int ret = ::setsockopt(file_descriptor_base::fd , SOL_SOCKET , SO_REUSEPORT , &reuse , sizeof(int));
+        if(ret != 0) throw make_system_error(errno);
+    }
+
+    void bind(address_t addr ){
         if(::bind(fd , addr.ptr() , addr.len())!= 0) 
             throw make_system_error(errno);
         m_addr = addr;

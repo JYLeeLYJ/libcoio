@@ -3,7 +3,8 @@
 
 #include <arpa/inet.h>
 #include <sys/un.h>
-#include <bit>
+
+#include "endian.hpp"
 
 namespace coio{
 
@@ -50,7 +51,7 @@ struct ipv4{
         sockaddr_in addr{.sin_family = AF_INET };
         explicit address () noexcept = default;
         explicit address( uint16_t port , const char * ip = nullptr) noexcept{
-            addr.sin_port = ::htons(port); 
+            addr.sin_port = host_to_net(port); 
             if(ip)::inet_pton(ip_domain{}.domain() , ip , &addr.sin_addr);
             else addr.sin_addr.s_addr = INADDR_ANY ;
         }
@@ -69,7 +70,7 @@ struct ipv4{
         std::string to_string() const {
             char buf[INET_ADDRSTRLEN] {};
             ::inet_ntop(ip_domain{}.domain() , &addr.sin_addr , buf , INET_ADDRSTRLEN );
-            return std::string{buf}.append(":") + std::to_string(::ntohs(addr.sin_port));
+            return std::string{buf}.append(":") + std::to_string(net_to_host(addr.sin_port));
         }
     };
 
@@ -93,7 +94,7 @@ struct ipv6{
         sockaddr_in6 addr{.sin6_family = AF_INET6 };
         explicit address () noexcept = default;
         explicit address (uint16_t port , const char * ip = nullptr) noexcept {
-            addr.sin6_port = ::htons(port)  ;
+            addr.sin6_port = host_to_net(port)  ;
             if(ip)::inet_pton(ip_domain{}.domain() , ip , &addr.sin6_addr);
             else addr.sin6_addr = IN6ADDR_ANY_INIT;
         }
@@ -101,14 +102,14 @@ struct ipv6{
         const
         sockaddr * ptr() const {return reinterpret_cast<const sockaddr*>(&addr);}
         constexpr 
-        socklen_t  len() const {return sizeof(sockaddr_in); }
+        socklen_t  len() const {return sizeof(sockaddr_in6); }
 
         constexpr bool operator == (const address & other ) const noexcept = default;
 
         std::string to_string() const {
             static thread_local char buf[INET6_ADDRSTRLEN ] {};
             inet_ntop(ip_domain{}.domain() , &addr.sin6_addr, buf , INET6_ADDRSTRLEN );
-            return std::string{buf}.append(":") + std::to_string(::ntohs(addr.sin6_port));
+            return std::string{buf}.append(":") + std::to_string(net_to_host(addr.sin6_port));
         }
     };
 

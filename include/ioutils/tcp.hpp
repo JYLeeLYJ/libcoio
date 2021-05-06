@@ -1,6 +1,7 @@
 #ifndef COIO_TCP_HPP
 #define COIO_TCP_HPP
 
+#include <netinet/tcp.h>
 #include "socket_base.hpp"
 
 namespace coio{
@@ -39,6 +40,12 @@ public:
         if(::getpeername(this->fd , addr.ptr() , &len) != 0 )
             throw make_system_error(errno);
         return addr;
+    }
+
+    void set_no_delay()  {
+        int reuse = 1;
+        int ret = ::setsockopt(file_descriptor_base::fd , SOL_TCP , TCP_NODELAY , &reuse , sizeof(int));
+        if(ret != 0) throw make_system_error(errno);
     }
 
 public:
@@ -95,8 +102,6 @@ public:
         );
     }
 };
-
-
 
 //acceptor
 
