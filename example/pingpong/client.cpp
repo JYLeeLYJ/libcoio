@@ -53,16 +53,7 @@ future<uint64_t> client( io_context & ctx , uint times) {
 std::atomic<double>  g_throughput {0.0};
 std::atomic<int> thread_id {0};
 
-// future<void> show(int tid , std::atomic<uint64_t> & bytes){
-//     while(true){
-//         using namespace std::chrono_literals;
-//         co_await coio::time_delay(1s);
-//         std::cout << "thread " << tid << "read bytes " << bytes << std::endl;
-//     }
-// }
-
 void start(uint conns , uint times , std::atomic<uint64_t> & bytes){
-    
     auto ctx = io_context{
         // coio::ctx_opt{.sq_polling = true}
     };
@@ -72,7 +63,6 @@ void start(uint conns , uint times , std::atomic<uint64_t> & bytes){
         [&]()->future<void>{
             using namespace std::chrono;
             std::vector<future<uint64_t>> futures;
-            // uint64_t this_bytes = 0;
 
             //for all connections
             while(conns -- ){
@@ -92,13 +82,11 @@ void start(uint conns , uint times , std::atomic<uint64_t> & bytes){
             std::cout 
                 << "thread" << this_tid << " pingpong cost " << cost_tm.count() << " ms , "
                 << "throughput " << this_throughput << " MB/S" << std::endl;
-
             ctx.request_stop();
         };
 
     ctx.post([&]{
         ctx.co_spawn(task());
-        // ctx.co_spawn(show(this_tid ,bytes));
     });
     // ctx.poll();
     ctx.run();
