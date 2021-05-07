@@ -6,42 +6,29 @@
 
 #include "future.hpp"
 #include "details/await_counter.hpp"
-#include "details/awaitable_wrapper.hpp"
-#include "details/callback_awaiter.hpp"
+#include "details/task_with_callback.hpp"
 
 namespace coio{
 
 namespace details{
 
     template<class R>
-    using non_void_result_impl = std::conditional_t<std::is_void_v<R> , void_value , R>;
+    using non_void_result_impl = std::conditional_t<std::is_void_v<R> , void_t , R>;
 
     template<class T>
     using non_void_result_t = non_void_result_impl<typename awaitable_traits<T>::await_result_t>;
 
-    //TODO : complete when exception
     template<concepts::awaitable A>
     requires concepts::void_type<typename awaitable_traits<A>::await_resume_t>
-    auto make_when_all_wait_task(A && a , awaitable_counter & counter )
-    -> details::awaitable_wrapper<void> {
-        // GCC BUG TRACK : https://gcc.gnu.org/bugzilla/show_bug.cgi?id=99575
-        // https://godbolt.org/z/anWWjb4j4
-        // co_await std::forward<A>(a)
+    auto make_when_all_wait_task(A && a ) 
+    -> details::task_with_callback<void>{
         co_await reinterpret_cast<A&&>(a);
-        auto cb = [&]()noexcept{counter.notify_complete_one();};
-        co_await details::final_callback_awaiter<decltype(cb)&>{.callback = cb};
     }
 
     template<concepts::awaitable A>
-    auto make_when_all_wait_task(A && a , awaitable_counter & counter)
-    -> details::awaitable_wrapper<typename awaitable_traits<A>::await_resume_t>{
-        co_yield details::forward_with_callback(
-            // GCC BUG TRACK : https://gcc.gnu.org/bugzilla/show_bug.cgi?id=99575
-            // https://godbolt.org/z/anWWjb4j4
-            // co_await std::forward<A>(a)
-            co_await reinterpret_cast<A&&>(a),
-            [&]()noexcept{counter.notify_complete_one();}
-        );
+    auto make_when_all_wait_task(A && a)
+    -> details::task_with_callback<typename awaitable_traits<A>::await_resume_t>{
+        co_yield co_await reinterpret_cast<A&&>(a);
     }
 
     //is a coroutine
@@ -49,11 +36,14 @@ namespace details{
     auto when_all_impl(A ...awaitable) -> future<std::tuple<details::non_void_result_t<A>...>>{
         constexpr auto N = sizeof...(awaitable);
         awaitable_counter counter{.cnt = N };
-        std::tuple tasks {details::make_when_all_wait_task(std::forward<A>(awaitable) , counter)...} ;
+        std::tuple tasks {details::make_when_all_wait_task(std::forward<A>(awaitable))...} ;
 
+        auto callback = [&](){ counter.notify_complete_one();};
         auto run_task   = [](auto & ...task) {(task.start() , ...);};
         auto get_result = [](auto & ...task) {return std::tuple{task.get_non_void()...};};
-
+        auto set_fin    = [&](auto & ...task) {(task.set_callback(callback) , ...) ;};
+        
+        std::apply(set_fin  ,tasks);
         std::apply(run_task , tasks);
         co_await counter;
         co_return std::apply(get_result , tasks);
@@ -74,11 +64,14 @@ template<concepts::awaitable A , class R = awaitable_traits<A>::await_result_t >
 requires concepts::void_type<R>
 future<void> when_all(std::vector<A> awaitables){
 
-    using task_t=  details::awaitable_wrapper<void>;
+    using task_t=  details::task_with_callback<void>;
     awaitable_counter counter{.cnt = awaitables.size() };
+    auto callback = [&](){ counter.notify_complete_one();};
+
     std::vector<task_t> v{};
     for(auto & a : awaitables){
-        auto task = details::make_when_all_wait_task(a , counter);
+        auto task = details::make_when_all_wait_task(a);
+        task.set_callback(callback);
         task.start();
         v.emplace_back(std::move(task));
     }
@@ -91,11 +84,13 @@ future<std::vector<R>> when_all(std::vector<A> awaitables){
 
     awaitable_counter counter{.cnt = awaitables.size()};
 
-    using task_t = decltype(details::make_when_all_wait_task(awaitables[0] , counter));
+    using task_t = decltype(details::make_when_all_wait_task(awaitables[0]));
+    auto callback = [&](){ counter.notify_complete_one();};
 
     std::vector<task_t> tasks{};
     for(auto & a : awaitables){
-        auto task = details::make_when_all_wait_task(a , counter);
+        auto task = details::make_when_all_wait_task(a);
+        task.set_callback(callback);
         task.start();
         tasks.emplace_back(std::move(task));
     }

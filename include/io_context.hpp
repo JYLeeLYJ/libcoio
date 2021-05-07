@@ -16,7 +16,7 @@
 #include "common/non_copyable.hpp"
 #include "common/scope_guard.hpp"
 #include "system_error.hpp"
-#include "details/awaitable_wrapper.hpp"
+#include "details/task_with_callback.hpp"
 
 namespace coio{
 
@@ -46,7 +46,7 @@ private:
 
     using task_t = std::function<void()>;
     using task_list = std::deque<task_t> ;
-    using spawn_task = details::awaitable_wrapper<void>;
+    using spawn_task = details::task_with_callback<void>;
 
     inline static thread_local io_context * this_thread_context {nullptr};
 
@@ -231,26 +231,12 @@ public:
 
 private:
 
-    struct entry_final_awaiter : std::suspend_always{
-        io_context * ctx;
-        void await_suspend(std::coroutine_handle<> handle){
-            //erase later;
-            ctx->dispatch([= , this](){
-                if(auto it = ctx->m_detach_task.find(handle);it != ctx->m_detach_task.end())
-                    ctx->m_detach_task.erase(it);                
-            });
-        }
-    };
-
     template<concepts::awaitable A>
     spawn_task co_spwan_entry_point( A a){
         //GCC BUG TRACK : https://gcc.gnu.org/bugzilla/show_bug.cgi?id=99575
         // https://godbolt.org/z/anWWjb4j4
         // (void)co_await std::forward<A>(a);   // A& will also be moved here (on gcc)
-        try{
         (void)co_await reinterpret_cast<A&&>(a);
-        }catch(...){}
-        co_await entry_final_awaiter{.ctx = this};
     }
 
 private:
@@ -343,6 +329,13 @@ private:
 
     void insert_entry_and_start(spawn_task && entry){
         auto handle = entry.handle();
+        entry.set_callback(
+        [=,this](){
+            this->dispatch([= , this](){
+                if(auto it = this->m_detach_task.find(handle);it != this->m_detach_task.end())
+                    this->m_detach_task.erase(it);                
+            });
+        });
         m_detach_task.insert_or_assign(handle , std::move(entry));
         handle.resume();
     }
