@@ -202,7 +202,7 @@ TEST(test_io_context , test_when_all_async){
 
     uint cnt {};
     auto make_future = [&]()->coio::future<uint>{
-        co_await coio::time_delay(100ms);
+        co_await coio::time_delay(1ms);
         co_return ++cnt;
     };
 
@@ -227,7 +227,7 @@ TEST(test_io_context , test_when_all_async){
     EXPECT_EQ(cnt , 0);
     ctx.post([&]{ 
         ctx.co_spawn(task());
-        // warning : GOT GCC BUG on the nested lambda coroutine
+        // warning : GOT GCC BUG on the nested lambda coroutine with capture val
         // ctx.co_spawn([&]()->coio::future<void>{
         //     try{
         //         std::vector vs = co_await when_all(std::move(fs));  

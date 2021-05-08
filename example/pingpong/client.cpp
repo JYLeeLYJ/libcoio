@@ -53,40 +53,41 @@ future<uint64_t> client( io_context & ctx , uint times) {
 std::atomic<double>  g_throughput {0.0};
 std::atomic<int> thread_id {0};
 
+auto start_all_conn(io_context & ctx , uint conns , uint times , std::atomic<uint64_t> & bytes) -> future<void>{
+
+    auto this_tid = ++thread_id ;
+
+    using namespace std::chrono;
+    std::vector<future<uint64_t>> futures;
+
+    //for all connections
+    while(conns -- ){
+        futures.emplace_back(client(ctx , times));
+    }
+    
+    auto beg = steady_clock::now();
+    auto results = co_await when_all(std::move(futures));
+    auto end = steady_clock::now();
+    
+    auto this_bytes = std::accumulate(results.begin() , results.end(), 0ull );
+    auto cost_tm = duration_cast<milliseconds>(end-beg) ;
+    auto this_throughput = (this_bytes / 1024.0) / cost_tm.count() ;
+    g_throughput += this_throughput;
+    bytes += this_bytes;
+
+    std::cout 
+        << "thread" << this_tid << " pingpong cost " << cost_tm.count() << " ms , "
+        << "throughput " << this_throughput << " MB/S" << std::endl;
+    ctx.request_stop();
+}
+
 void start(uint conns , uint times , std::atomic<uint64_t> & bytes){
     auto ctx = io_context{
         // coio::ctx_opt{.sq_polling = true}
     };
     auto _ = ctx.bind_this_thread();
-    auto this_tid = ++thread_id ;
-    auto task = 
-        [&]()->future<void>{
-            using namespace std::chrono;
-            std::vector<future<uint64_t>> futures;
-
-            //for all connections
-            while(conns -- ){
-                futures.emplace_back(client(ctx , times));
-            }
-            
-            auto beg = steady_clock::now();
-            auto results = co_await when_all(std::move(futures));
-            auto end = steady_clock::now();
-            
-            auto this_bytes = std::accumulate(results.begin() , results.end(), 0ull );
-            auto cost_tm = duration_cast<milliseconds>(end-beg) ;
-            auto this_throughput = (this_bytes / 1024.0) / cost_tm.count() ;
-            g_throughput += this_throughput;
-            bytes += this_bytes;
-
-            std::cout 
-                << "thread" << this_tid << " pingpong cost " << cost_tm.count() << " ms , "
-                << "throughput " << this_throughput << " MB/S" << std::endl;
-            ctx.request_stop();
-        };
-
     ctx.post([&]{
-        ctx.co_spawn(task());
+        ctx.co_spawn(start_all_conn(ctx , conns , times , bytes));
     });
     // ctx.poll();
     ctx.run();
