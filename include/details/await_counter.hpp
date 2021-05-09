@@ -2,7 +2,7 @@
 #define COIO_AWAIT_COUNTER_HPP
 
 #ifndef __cpp_lib_atomic_wait
-//disable content_t usage to keep this lib header only
+// disable content_t usage to keep this lib header only
 #define __NO_TABLE
 // https://github.com/ogiroux/atomic_wait
 #include "common/atomic_wait.hpp"
@@ -10,37 +10,37 @@
 
 #include <coroutine>
 
-namespace coio{
-    
-    struct awaitable_counter {
+namespace coio {
 
-        auto operator co_await() noexcept {
-            struct  awaiter {
-                bool await_ready() const noexcept {
-                    return m_counter.cnt.load(std::memory_order_acquire) == 0;
-                }
+struct awaitable_counter {
 
-                void await_suspend(std::coroutine_handle<> continuation){ 
-                    m_counter.continuation = continuation;
-                }
+  auto operator co_await() noexcept {
+    struct awaiter {
+      bool await_ready() const noexcept {
+        return m_counter.cnt.load(std::memory_order_acquire) == 0;
+      }
 
-                void await_resume() noexcept {}
+      void await_suspend(std::coroutine_handle<> continuation) {
+        m_counter.continuation = continuation;
+      }
 
-                awaitable_counter & m_counter;
-            };
-            return awaiter{*this};
-        }
+      void await_resume() noexcept {}
 
-        void notify_complete_one(){
-            if(cnt.fetch_sub(1 , std::memory_order_acq_rel) == 1)
-                if(continuation) continuation .resume();
-        }
-
-        std::coroutine_handle<> continuation{nullptr};
-        std::atomic<uint64_t> cnt{0};
+      awaitable_counter &m_counter;
     };
+    return awaiter{*this};
+  }
+
+  void notify_complete_one() {
+    if (cnt.fetch_sub(1, std::memory_order_acq_rel) == 1)
+      if (continuation)
+        continuation.resume();
+  }
+
+  std::coroutine_handle<> continuation{nullptr};
+  std::atomic<uint64_t> cnt{0};
+};
 
 } // namespace coio
-
 
 #endif

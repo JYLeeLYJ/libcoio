@@ -26,3 +26,8 @@ test:
 
 example :
 	+make -C ./example 
+
+format :
+	find include -name "*.hpp" |xargs clang-format -i 
+	find example -name "*.cpp" |xargs clang-format -i
+	find test -name "*.cpp" |xargs clang-format -i

@@ -3,12 +3,12 @@
 
 #include <system_error>
 
-namespace coio{
+namespace coio {
 
-    static inline std::system_error make_system_error(int err){
-        return std::system_error{err , std::system_category()};
-    }
-
+static inline std::system_error make_system_error(int err) {
+  return std::system_error{err, std::system_category()};
 }
+
+} // namespace coio
 
 #endif
