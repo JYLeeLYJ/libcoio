@@ -15,7 +15,7 @@ TMP_DIR := $(CURDIR)/tmp
 $(shell if [ ! -e $(OUT_DIR) ]; then mkdir -p $(OUT_DIR) ; fi)
 $(shell if [ ! -e $(TMP_DIR) ]; then mkdir -p $(TMP_DIR) ; fi)
 
-.PHONY: test clean example
+.PHONY: test example
 clean : 
 	rm -rf bin/*
 	rm -rf tmp/*.o

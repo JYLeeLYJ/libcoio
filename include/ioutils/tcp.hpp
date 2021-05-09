@@ -50,6 +50,14 @@ public:
       throw make_system_error(errno);
   }
 
+  void set_keep_alive() {
+    int keep_alive = 1;
+    auto ret = setsockopt(file_descriptor_base::fd, SOL_SOCKET, SO_KEEPALIVE,
+                          (void *)&keep_alive, sizeof(keep_alive));
+    if (ret != 0)
+      throw make_system_error(errno);
+  }
+
 public:
   template <concepts::writeable_buffer T>
   auto recv(T &&buff) -> awaiter_of<std::size_t> auto {

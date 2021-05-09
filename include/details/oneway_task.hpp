@@ -2,7 +2,6 @@
 #define COIO_ONEWAY_TASK_HPP
 
 #include <coroutine>
-#include <exception>
 
 namespace coio {
 
@@ -14,7 +13,7 @@ struct oneway_task {
     constexpr auto initial_suspend() noexcept { return std::suspend_always{}; }
     constexpr auto final_suspend() noexcept { return std::suspend_never{}; }
     void return_void() {}
-    void unhandled_exception() { (void)std::current_exception(); }
+    void unhandled_exception() {}
     oneway_task get_return_object() noexcept {
       return std::coroutine_handle<promise_type>::from_promise(*this);
     }

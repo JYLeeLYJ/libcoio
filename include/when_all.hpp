@@ -65,26 +65,26 @@ auto when_all(A &&...awaitable)
 }
 
 template <concepts::awaitable A, class R = awaitable_traits<A>::await_result_t>
-  requires concepts::void_type<R> future<void>
-  when_all(std::vector<A> awaitables) {
+  requires concepts::void_type<R>
+auto when_all(std::vector<A> awaitables) -> future<void> {
 
-    using task_t = details::task_with_callback<void>;
-    awaitable_counter counter{.cnt = awaitables.size()};
-    auto callback = [&]() { counter.notify_complete_one(); };
+  using task_t = details::task_with_callback<void>;
+  awaitable_counter counter{.cnt = awaitables.size()};
+  auto callback = [&]() { counter.notify_complete_one(); };
 
-    std::vector<task_t> v{};
-    for (auto &a : awaitables) {
-      auto task = details::make_when_all_wait_task(a);
-      task.set_callback(callback);
-      task.start();
-      v.emplace_back(std::move(task));
-    }
-
-    co_await counter;
+  std::vector<task_t> v{};
+  for (auto &a : awaitables) {
+    auto task = details::make_when_all_wait_task(a);
+    task.set_callback(callback);
+    task.start();
+    v.emplace_back(std::move(task));
   }
 
+  co_await counter;
+}
+
 template <concepts::awaitable A, class R = awaitable_traits<A>::await_result_t>
-future<std::vector<R>> when_all(std::vector<A> awaitables) {
+auto when_all(std::vector<A> awaitables) -> future<std::vector<R>> {
 
   awaitable_counter counter{.cnt = awaitables.size()};
 
