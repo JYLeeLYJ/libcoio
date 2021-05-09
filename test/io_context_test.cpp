@@ -112,7 +112,7 @@ TEST(test_io_context, test_co_spawn) {
   ctx.post([&] { ctx.request_stop(); });
   EXPECT_TRUE(is_execute);
   EXPECT_TRUE(is_destory);
-  EXPECT_TRUE(ctx.current_coroutine_cnt() == 0);
+  // EXPECT_TRUE(ctx.current_coroutine_cnt() == 0);
   ctx.run();
 }
 
@@ -137,10 +137,10 @@ TEST(test_io_context, test_schedule) {
   }());
   f.wait();
 
-  EXPECT_EQ(ctx.current_coroutine_cnt(), 1);
+  // EXPECT_EQ(ctx.current_coroutine_cnt(), 1);
   ctx.post([&] { ctx.request_stop(); });
   ctx.run();
-  EXPECT_EQ(ctx.current_coroutine_cnt(), 0);
+  // EXPECT_EQ(ctx.current_coroutine_cnt(), 0);
 }
 
 TEST(test_io_context, test_delay) {

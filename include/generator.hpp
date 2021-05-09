@@ -4,6 +4,7 @@
 #include "common/non_copyable.hpp"
 #include <coroutine>
 #include <exception>
+#include <iterator>
 #include <type_traits>
 
 namespace coio {

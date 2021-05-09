@@ -6,7 +6,6 @@
 #include <chrono>
 #include <deque>
 #include <functional>
-#include <map>
 #include <mutex>
 #include <stop_token>
 #include <thread>
@@ -14,7 +13,7 @@
 #include "awaitable.hpp"
 #include "common/non_copyable.hpp"
 #include "common/scope_guard.hpp"
-#include "details/task_with_callback.hpp"
+#include "details/oneway_task.hpp"
 #include "system_error.hpp"
 #include <liburing.h>
 
@@ -46,7 +45,7 @@ class io_context : non_copyable {
 private:
   using task_t = std::function<void()>;
   using task_list = std::deque<task_t>;
-  using spawn_task = details::task_with_callback<void>;
+  using spawn_task = details::oneway_task;
 
   inline static thread_local io_context *this_thread_context{nullptr};
 
@@ -146,21 +145,20 @@ public:
 
   // put an awaitable object into context to wait for finished
   template <concepts::awaitable A> void co_spawn(A &&a) {
-    auto co_spawn_entry = co_spwan_entry_point<A>(std::forward<A>(a));
+    auto task = co_spawn_entry_point<A>(std::forward<A>(a));
     if (is_in_local_thread()) {
-      insert_entry_and_start(std::move(co_spawn_entry));
+      task.start();
     } else {
       std::lock_guard guard{m_mutex};
-      m_remote_co_spwan.push_back(std::move(co_spawn_entry));
+      m_remote_spawn.push_back(std::move(task));
     }
   }
 
   // TODO:execute an coroutine on current context.
 
   //
-  std::size_t current_coroutine_cnt() const noexcept {
-    return m_detach_task.size();
-  }
+  // std::size_t current_coroutine_cnt() const noexcept {
+  // }
 
 public:
   struct async_result {
@@ -211,7 +209,7 @@ public:
   }
 
 private:
-  template <concepts::awaitable A> spawn_task co_spwan_entry_point(A a) {
+  template <concepts::awaitable A> spawn_task co_spawn_entry_point(A a) {
     // GCC BUG TRACK : https://gcc.gnu.org/bugzilla/show_bug.cgi?id=99575
     // https://godbolt.org/z/anWWjb4j4
     // (void)co_await std::forward<A>(a);   // A& will also be moved here (on
@@ -310,30 +308,17 @@ private:
     }
   }
 
-  void insert_entry_and_start(spawn_task &&entry) {
-    auto handle = entry.handle();
-    entry.set_callback([=, this]() {
-      this->dispatch([=, this]() {
-        if (auto it = this->m_detach_task.find(handle);
-            it != this->m_detach_task.end())
-          this->m_detach_task.erase(it);
-      });
-    });
-    m_detach_task.insert_or_assign(handle, std::move(entry));
-    handle.resume();
-  }
-
   std::size_t resolve_remote_coroutine() {
-    if (m_remote_co_spwan.empty())
+    if (m_remote_spawn.empty())
       return 0;
     std::vector<spawn_task> tasks{};
     {
       std::lock_guard guard{m_mutex};
-      std::swap(tasks, m_remote_co_spwan);
+      std::swap(tasks, m_remote_spawn);
     }
 
-    for (auto &entry : tasks) {
-      insert_entry_and_start(std::move(entry));
+    for (auto &t : tasks) {
+      t.start();
     }
     return tasks.size();
   }
@@ -380,14 +365,11 @@ private:
 
   std::mutex m_mutex;
   task_list m_remote_tasks;
-  std::vector<spawn_task> m_remote_co_spwan;
+  std::vector<spawn_task> m_remote_spawn;
 
   task_list m_local_tasks;
   std::atomic<bool> m_is_stopped{false};
   std::thread::id m_thid;
-
-  // co_spwan ownership
-  std::map<std::coroutine_handle<>, spawn_task> m_detach_task; //
 };
 
 } // namespace coio

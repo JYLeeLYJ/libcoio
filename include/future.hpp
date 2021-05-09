@@ -51,8 +51,8 @@ private:
 namespace concepts {
 
 template <class T>
-concept future_value = concepts::value_type<T> || concepts::void_type<T>; //||
-// concepts::lvalue_reference<T>;
+concept future_value = concepts::value_type<T> ||
+    concepts::void_type<T>; //|| concepts::lvalue_reference<T>;
 } // namespace concepts
 
 template <concepts::future_value T> class future;
