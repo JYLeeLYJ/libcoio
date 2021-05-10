@@ -178,14 +178,6 @@ public:
 protected:
   bool is_ready() const noexcept { return !m_handle || m_handle.done(); }
 
-  auto await_when_ready() const noexcept {
-    struct awaiter : basic_awaiter {
-      using basic_awaiter::basic_awaiter;
-      void await_resume() noexcept {}
-    };
-    return awaiter{m_handle};
-  }
-
 private:
   std::coroutine_handle<promise_type> m_handle;
 };
