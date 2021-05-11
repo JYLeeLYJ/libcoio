@@ -20,7 +20,7 @@ class acceptor;
 template <class Domain = ipv4>
   requires concepts::protocal<typename Domain::tcp>
 class tcp_sock : public socket_base<typename Domain::tcp> {
-protected:
+public:
   using address_t = Domain::tcp::address_type;
 
 public:
@@ -153,6 +153,7 @@ public:
 template <class Domain = ipv4>
   requires concepts::protocal<typename Domain::tcp>
 class connector : public tcp_sock<Domain> {
+public:
   using address_t = typename tcp_sock<Domain>::address_t;
 
 public:
@@ -161,7 +162,7 @@ public:
 
   // connect
   // awaitable[void]
-  auto connect(address_t addr) -> awaiter_of<void> auto {
+  auto connect(const address_t & addr) -> awaiter_of<void> auto {
     return io_context::current_context()->submit_io_task(
         [=, this](io_uring_sqe *sqe) mutable {
           ::io_uring_prep_connect(sqe, this->fd, addr.ptr(), addr.len());

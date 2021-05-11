@@ -22,10 +22,7 @@ public:
 
 public:
   socket_base() {
-    int fd = ::socket(m_proto.domain(), m_proto.type(), 0);
-    if (fd < 0)
-      throw make_system_error(errno);
-    file_descriptor_base::fd = fd;
+    init();
   }
   explicit socket_base(int fd) noexcept : file_descriptor_base(fd) {}
   explicit socket_base(int fd, const address_t &addr) noexcept
@@ -35,6 +32,14 @@ public:
   socket_base &operator=(socket_base &&other) = default;
 
 public:
+  void init() {
+    if(fd > 0) return ;
+    int fd = ::socket(m_proto.domain(), m_proto.type(), 0);
+    if (fd < 0)
+      throw make_system_error(errno);
+    file_descriptor_base::fd = fd;
+  }
+
   void set_reuse_address() {
     int reuse = 1;
     int ret = ::setsockopt(file_descriptor_base::fd, SOL_SOCKET, SO_REUSEADDR,
