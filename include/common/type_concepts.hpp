@@ -27,6 +27,9 @@ concept value_type =
     !std::is_void_v<T> && !reference_type<T> && !function_type<T>;
 
 } // namespace concepts
+
+struct void_t {};
+
 } // namespace coio
 
 #endif

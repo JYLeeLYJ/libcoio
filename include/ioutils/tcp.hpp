@@ -162,7 +162,7 @@ public:
 
   // connect
   // awaitable[void]
-  auto connect(const address_t & addr) -> awaiter_of<void> auto {
+  auto connect(const address_t &addr) -> awaiter_of<void> auto {
     return io_context::current_context()->submit_io_task(
         [=, this](io_uring_sqe *sqe) mutable {
           ::io_uring_prep_connect(sqe, this->fd, addr.ptr(), addr.len());

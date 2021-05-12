@@ -36,9 +36,7 @@ public:
   }
 
 public:
-  bool valid() {
-    return fd < 0;
-  }
+  bool valid() { return fd < 0; }
 
   void set_non_block() {
     int flags = ::fcntl(fd, F_GETFL, 0);

@@ -12,8 +12,6 @@ namespace coio {
 
 namespace details {
 
-struct void_t {};
-
 template <class T> class task_with_callback : non_copyable {
 public:
   using value_type = std::remove_reference_t<T>;

@@ -21,9 +21,7 @@ public:
   using address_t = typename Proto::address_type;
 
 public:
-  socket_base() {
-    init();
-  }
+  socket_base() { init(); }
   explicit socket_base(int fd) noexcept : file_descriptor_base(fd) {}
   explicit socket_base(int fd, const address_t &addr) noexcept
       : file_descriptor_base(fd), m_addr(addr) {}
@@ -33,7 +31,8 @@ public:
 
 public:
   void init() {
-    if(fd > 0) return ;
+    if (fd > 0)
+      return;
     int fd = ::socket(m_proto.domain(), m_proto.type(), 0);
     if (fd < 0)
       throw make_system_error(errno);
