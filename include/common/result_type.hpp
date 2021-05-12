@@ -108,8 +108,6 @@ public:
 
   constexpr Err &get_error() noexcept { return *error_ptr(); }
 
-  //   constexpr const Err &get_error() const noexcept { return *error_ptr(); }
-
   constexpr void set_error(Err e) {
     this->~result();
     std::construct_at(error_ptr(), std::move(e));
@@ -122,18 +120,12 @@ public:
 
   constexpr Value &value() noexcept { return *value_ptr(); }
 
-  //   constexpr const Value &value() const noexcept { return *value_ptr(); }
-
 private:
   constexpr Value *value_ptr() noexcept { return std::launder(&m_val); }
 
-  //   constexpr const Value *value_ptr() noexcept { return &m_val; }
-
   constexpr Err *error_ptr() noexcept { return std::launder(&m_err); }
-  //   constexpr const Err *error_ptr() noexcept { return &m_err; }
 
 private:
-  // std::aligned_union_t<Value , Err> m_union;
   union alignas(std::max(alignof(Value), alignof(Err))) {
     Value m_val;
     Err m_err;
