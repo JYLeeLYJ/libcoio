@@ -34,7 +34,7 @@ class result {
 public:
   // constexpr explicit result() noexcept{};
 
-  constexpr explicit result(Value v) noexcept(is_nothrow_move_value)
+  constexpr result(Value v) noexcept(is_nothrow_move_value)
       : m_val(std::move(v)) {}
 
   template <std::convertible_to<Err> E>

@@ -17,6 +17,6 @@ TEST(test_common, test_result) {
   auto r2 = res.map([&](int) { get_res = true; });
 
   // propagate
-  EXPECT_EQ(r2.get_error(), "shit error");
+  EXPECT_EQ(r2.get_error(), "shit error.");
   EXPECT_FALSE(get_res);
 }

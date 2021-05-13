@@ -49,6 +49,7 @@ struct ipv4 {
   struct address {
 
     sockaddr_in addr{.sin_family = AF_INET};
+
     explicit address() noexcept = default;
     explicit address(uint16_t port, const char *ip = nullptr) noexcept {
       addr.sin_port = host_to_net(port);
@@ -74,6 +75,14 @@ struct ipv4 {
       ::inet_ntop(ip_domain{}.domain(), &addr.sin_addr, buf, INET_ADDRSTRLEN);
       return std::string{buf}.append(":") +
              std::to_string(net_to_host(addr.sin_port));
+    }
+
+    static constexpr auto from_raw_address(const sockaddr_in &addr) {
+      address a{};
+      a.addr.sin_port = addr.sin_port;
+      a.addr.sin_family = addr.sin_family;
+      a.addr.sin_addr = addr.sin_addr;
+      return a;
     }
   };
 

@@ -34,9 +34,9 @@ TEST(test_sock, test_udp) {
       coio::udp_sock client{};
       client.bind(coio::ipv4::address{11451});
 
-      char sendbuf[] = "hello world.";
+      auto sendbuf = "hello world."s;
       auto n = co_await client.sendto(s_addr, coio::to_bytes(sendbuf));
-      EXPECT_EQ(n, 13);
+      EXPECT_EQ(n, 12);
 
     } catch (...) {
       ptr = std::current_exception();
@@ -56,8 +56,8 @@ TEST(test_sock, test_udp) {
       auto n = co_await server.recvfrom(addr, coio::to_bytes(recvbuf));
       auto expect_addr = coio::ipv4::address{11451, "127.0.0.1"};
       EXPECT_EQ(addr, expect_addr);
-      EXPECT_EQ(n, 13);
-      auto s = std::string_view{recvbuf, n - 1};
+      EXPECT_EQ(n, 12);
+      auto s = std::string_view{recvbuf, n};
       EXPECT_EQ(s, "hello world."sv);
 
     } catch (...) {
