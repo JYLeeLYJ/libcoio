@@ -47,6 +47,12 @@ public:
   std::size_t size() const noexcept { return pptr() - gptr(); }
 
   std::string_view data() const noexcept { return {gptr(), pptr() - gptr()}; }
+  std::optional<std::string_view> try_get_data(std::size_t n) const noexcept {
+    if (size() < n)
+      return {};
+    else
+      return std::string_view{gptr(), gptr() + n};
+  }
 
   void reserve(std::size_t n) {
     // rest put area is enough

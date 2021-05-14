@@ -43,9 +43,14 @@ public:
     ::fcntl(fd, F_SETFL, flags | O_NONBLOCK);
   }
 
+  auto close() noexcept {
+    ::close(fd);
+    fd = -1;
+  }
+
   // async close
   // will invaild fd after successfully closed
-  auto close() -> awaiter_of<void> auto {
+  auto async_close() -> awaiter_of<void> auto {
     return io_context::current_context()->submit_io_task(
         [this](io_uring_sqe *sqe) { ::io_uring_prep_close(sqe, this->fd); },
         [&](int res, int flag) {

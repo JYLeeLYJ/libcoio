@@ -20,3 +20,5 @@ TEST(test_common, test_result) {
   EXPECT_EQ(r2.get_error(), "shit error.");
   EXPECT_FALSE(get_res);
 }
+
+//TODO : stream buf test
