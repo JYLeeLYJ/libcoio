@@ -57,14 +57,13 @@ public:
     return request(http_method::post, url, body);
   }
 
-  // TODO : http request
   auto request(http_method method, std::string_view url, std::string_view body)
       -> future<result<http_response, std::string>> {
 
     if (method != http_method::post && !body.empty())
       co_return error("method error");
 
-    // parse uri
+    // 1.parse uri
     auto url_result = url::parse(url);
     if (url_result.is_error())
       co_return error("invalid url");
@@ -74,27 +73,28 @@ public:
       co_return error("unsupport protocal");
     }
 
-    // query dns
+    // 2.query dns
     auto addr_list = co_await async_query(std::string(u.host).c_str(), "http");
     if (!addr_list)
       co_return error("invalid host name");
 
-    // connect
+    // 3.connect
     if (!co_await connect(addr_list.value()))
       co_return error("host connection failed");
 
+    // 7.close
     auto _ = scope_guard{[this]() { m_tcp_client.socket().close(); }};
 
     auto msg = build_msg(u, method, body);
-    // do request write
+    // 4.do request write
     co_await m_tcp_client.socket().send(
         std::as_bytes(std::span{msg.data(), msg.size()}));
 
-    // recv header
+    // 5.recv header
     if (!(co_await read_headers()))
       co_return error("http response parse error");
 
-    // recv body
+    // 6.recv body
     http_response response{.status_code = m_parser->status};
     if (m_parser->body_len == 0)
       co_return response;

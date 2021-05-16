@@ -39,14 +39,16 @@ public:
   //     setg(eback() , pptr() , pptr());
   // }
 
-  auto prepare(std::size_t n) -> concepts::writeable_buffer auto {
+  [[nodiscard]] auto prepare(std::size_t n) -> concepts::writeable_buffer auto {
     reserve(n);
     return std::as_writable_bytes(std::span{pptr(), n});
   }
 
   std::size_t size() const noexcept { return pptr() - gptr(); }
 
-  std::string_view data() const noexcept { return {gptr(), pptr() - gptr()}; }
+  std::string_view data() const noexcept {
+    return {gptr(), static_cast<std::size_t>(pptr() - gptr())};
+  }
   std::optional<std::string_view> try_get_data(std::size_t n) const noexcept {
     if (size() < n)
       return {};

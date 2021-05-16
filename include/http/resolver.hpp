@@ -7,8 +7,13 @@
 #include <thread>
 #include <vector>
 
-#include "awaitable.hpp"
+#ifndef __cpp_lib_atomic_wait
+// disable content_t usage to keep this lib header only
+#define __NO_TABLE
+// https://github.com/ogiroux/atomic_wait
 #include "common/atomic_wait.hpp"
+#endif
+#include "awaitable.hpp"
 #include "io_context.hpp"
 #include "ioutils/protocol.hpp"
 #include <ares.h>
@@ -22,7 +27,7 @@ struct address_view {
   ares_addrinfo_cname *name;
   ares_addrinfo_node *node;
 
-  std::string_view get_name() const noexcept { return name->name; }
+  std::string_view get_name() const noexcept { return name ? name->name : ""; }
   bool is_v4() const noexcept { return node->ai_family == AF_INET; }
   auto to_address() const {
     if (node->ai_addrlen != sizeof(sockaddr_in))
@@ -33,7 +38,7 @@ struct address_view {
 };
 
 struct address_list {
-  ares_addrinfo *head;
+  std::unique_ptr<ares_addrinfo, decltype(&::ares_freeaddrinfo)> head;
 
   struct iterator_type : private address_view {
     explicit iterator_type(ares_addrinfo_cname *pname,
@@ -41,11 +46,13 @@ struct address_list {
         : address_view{pname, pnode} {}
 
     iterator_type &operator++() noexcept {
-      name = name->next, node = node->ai_next;
+      name = name ? name->next : nullptr;
+      node = node ? node->ai_next : nullptr;
       return *this;
     }
     auto operator++(int) noexcept {
-      return iterator_type{name->next, node->ai_next};
+      auto it = *this;
+      return ++it;
     }
 
     bool operator==(const iterator_type &it) const noexcept {
@@ -97,8 +104,9 @@ public:
   struct async_query_awaiter : std::suspend_always {
     async_resolver &resolver;
     std::coroutine_handle<> handle{};
-    const char *host{};
-    const char *service{};
+    std::string host{};
+    std::string service{};
+    coio::io_context *ctx;
     ares_addrinfo *result{};
     int status;
 
@@ -106,14 +114,15 @@ public:
       handle = h;
       {
         auto guard = std::lock_guard{resolver.m_mut};
-        resolver.m_query_list.push_back(query_info{host, service, this});
+        resolver.m_query_list.push_back(
+            query_info{host.c_str(), service.c_str(), this});
       }
       resolver.try_wakeup();
     }
 
     std::optional<address_list> await_resume() noexcept {
       if (status == ARES_SUCCESS && result) {
-        return address_list{.head = result};
+        return address_list{.head = {result, &ares_freeaddrinfo}};
       } else
         return {};
     }
@@ -121,8 +130,8 @@ public:
 
   static void query_callback(void *arg, int status, int timeouts,
                              ares_addrinfo *res) {
-    io_context::current_context()->post([=]() {
-      auto awaiter = reinterpret_cast<async_query_awaiter *>(arg);
+    auto awaiter = reinterpret_cast<async_query_awaiter *>(arg);
+    awaiter->ctx->post([=]() {
       awaiter->status = status;
       awaiter->result = res;
       if (awaiter->handle) [[likely]] {
@@ -135,7 +144,8 @@ public:
 protected:
   void init() {
     m_thread = std::jthread([this](std::stop_token token) {
-      int nfds, count;
+      int nfds;
+      // int count;
       fd_set readers, writers;
       timeval tv, *tvp;
       std::vector<query_info> qlist;
@@ -162,7 +172,7 @@ protected:
         if (nfds == 0)
           break;
         tvp = ares_timeout(m_channel, NULL, &tv);
-        count = select(nfds, &readers, &writers, NULL, tvp);
+        select(nfds, &readers, &writers, NULL, tvp);
         ares_process(m_channel, &readers, &writers);
 
         // try blocking if finish all query
@@ -179,8 +189,11 @@ protected:
   }
 
 public:
-  auto submit_query(const char *hostname, const char *service) {
-    return async_query_awaiter{.resolver = *this};
+  auto submit_query(std::string hostname, std::string service) {
+    return async_query_awaiter{.resolver = *this,
+                               .host = std::move(hostname),
+                               .service = std::move(service),
+                               .ctx = io_context::current_context()};
   }
 
 private:
@@ -191,9 +204,10 @@ private:
   std::atomic<uint64_t> m_pending_cnt{0};
 };
 
-auto async_query(const char *hostname, const char *service)
+auto async_query(std::string hostname, std::string service)
     -> concepts::awaiter_of<std::optional<address_list>> auto {
-  return async_resolver::instance().submit_query(hostname, service);
+  return async_resolver::instance().submit_query(std::move(hostname),
+                                                 std::move(service));
 }
 
 } // namespace coio

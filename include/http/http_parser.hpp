@@ -46,7 +46,7 @@ struct http_parser {
 
 private:
   static bool is_equal(std::string_view a, std::string_view b) {
-    auto tolower = [](char c) { return std::tolower(c); };
+    constexpr auto tolower = [](char c) { return std::tolower(c); };
     return std::ranges::equal(a | std::views::transform(tolower),
                               b | std::views::transform(tolower));
   }
