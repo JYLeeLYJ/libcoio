@@ -39,9 +39,10 @@ static std::string_view to_str(http_method m) {
 }
 
 struct http_response {
-  int status_code;
+  http_header header{};
   std::string rsp{};
-  // TODO : add headers field
+  std::size_t body_length {};
+  int status_code;
 };
 
 // not thread safe
@@ -59,7 +60,7 @@ public:
 
   auto request(http_method method, std::string_view url, std::string_view body)
       -> future<result<http_response, std::string>> {
-
+    
     if (method != http_method::post && !body.empty())
       co_return error("method error");
 
@@ -77,15 +78,17 @@ public:
     auto addr_list = co_await async_query(std::string(u.host).c_str(), "http");
     if (!addr_list)
       co_return error("invalid host name");
-
+    
     // 3.connect
-    if (!co_await connect(addr_list.value()))
+    if (!co_await connect(std::move(addr_list.value())))
       co_return error("host connection failed");
 
     // 7.close
-    auto _ = scope_guard{[this]() { m_tcp_client.socket().close(); }};
+    auto _ = scope_guard{[this]() noexcept{ m_tcp_client.socket().close(); }};
 
     auto msg = build_msg(u, method, body);
+    // printf("[send request] : \n%s\n" , msg.c_str());
+
     // 4.do request write
     co_await m_tcp_client.socket().send(
         std::as_bytes(std::span{msg.data(), msg.size()}));
@@ -94,12 +97,19 @@ public:
     if (!(co_await read_headers()))
       co_return error("http response parse error");
 
+    // puts("parse headers");
     // 6.recv body
-    http_response response{.status_code = m_parser->status};
+    http_response response{
+      .header = http_header{m_parser->headers | std::views::take(m_parser->headers_cnt)},
+      .body_length = m_parser->body_len,
+      .status_code = m_parser->status,
+    };
+
     if (m_parser->body_len == 0)
       co_return response;
     response.rsp = co_await read_body(m_parser->body_len);
-    co_return response;
+    
+    co_return std::move(response);
   }
 
   void add_header(std::string k, std::string v) { m_headers[k] = v; }
@@ -122,8 +132,10 @@ private:
     // read http head error
     if (head.empty() || !head.ends_with(DCRLF))
       co_return false;
+    // printf("[recv header] \n%s\n" , head.c_str());
+
     // parse head error if res < 0
-    co_return m_parser->parse_response(head) > 0;
+    co_return m_parser->parse_response(head);
   }
 
   future<std::string> read_body(std::size_t need_read) {
@@ -134,8 +146,8 @@ private:
     std::size_t n = 0;
     std::string rsp{};
     if (auto s = m_read_streambuf.try_get_data(need_read); s) {
-      rsp.append(s);
-      m_read_streambuf.consume(s.size());
+      rsp.append(*s);
+      m_read_streambuf.consume(s->size());
       co_return rsp;
     }
 
@@ -155,10 +167,11 @@ private:
         need_read -= n;
         m_read_streambuf.commit(n);
       }
-    } catch (...) {
-      rsp.append(m_read_streambuf.data());
-      m_read_streambuf.consume(rsp.size());
+    } catch (const std::exception & e) {
+      
     }
+    rsp.append(m_read_streambuf.data());
+    m_read_streambuf.consume(rsp.size());
     co_return rsp;
   }
 
@@ -198,7 +211,7 @@ private:
     write_msg.append(" ").append(u.path);
     if (!u.query.empty())
       write_msg.append("?").append(u.query);
-    write_msg.append(" HTTP/1.1\r\nHost:").append(u.host).append(CRLF);
+    write_msg.append(" HTTP/1.0\r\nHost:").append(u.host).append(CRLF);
 
     for (auto &[k, v] : m_headers) {
       write_msg.append(k).append(": ").append(v).append(CRLF);
@@ -211,9 +224,9 @@ private:
     }
 
     // default keep-alive
-    if (!m_headers.contains("Connection")) {
-      write_msg.append("Connection: keep-alive\r\n");
-    }
+    // if (!m_headers.contains("Connection")) {
+    //   write_msg.append("Connection: keep-alive\r\n");
+    // }
 
     write_msg.append(CRLF);
 

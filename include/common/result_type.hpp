@@ -49,6 +49,7 @@ public:
   }
 
   constexpr result(result &&other) noexcept(is_nothrow_move_value) {
+    m_iserr = other.m_iserr;
     if (other.is_error()) {
       std::construct_at(error_ptr(), std::move(*other.error_ptr()));
     } else
@@ -56,6 +57,7 @@ public:
   }
 
   constexpr result(const result &other) requires is_copyable {
+    m_iserr = other.m_iserr;
     if (other.is_error) {
       std::construct_at(error_ptr(), *other.error_ptr());
     } else
@@ -66,7 +68,9 @@ public:
     if (std::addressof(other) == this) [[unlikely]]
       return *this;
     this->~result();
+    m_iserr = other.m_iserr;
     std::construct_at(this, std::move(other));
+    return *this;
   }
 
 public:
