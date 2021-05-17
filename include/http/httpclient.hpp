@@ -41,7 +41,7 @@ static std::string_view to_str(http_method m) {
 struct http_response {
   http_header header{};
   std::string rsp{};
-  std::size_t body_length {};
+  std::size_t body_length{};
   int status_code;
 };
 
@@ -60,7 +60,7 @@ public:
 
   auto request(http_method method, std::string_view url, std::string_view body)
       -> future<result<http_response, std::string>> {
-    
+
     if (method != http_method::post && !body.empty())
       co_return error("method error");
 
@@ -78,13 +78,13 @@ public:
     auto addr_list = co_await async_query(std::string(u.host).c_str(), "http");
     if (!addr_list)
       co_return error("invalid host name");
-    
+
     // 3.connect
     if (!co_await connect(std::move(addr_list.value())))
       co_return error("host connection failed");
 
     // 7.close
-    auto _ = scope_guard{[this]() noexcept{ m_tcp_client.socket().close(); }};
+    auto _ = scope_guard{[this]() noexcept { m_tcp_client.socket().close(); }};
 
     auto msg = build_msg(u, method, body);
     // printf("[send request] : \n%s\n" , msg.c_str());
@@ -100,15 +100,16 @@ public:
     // puts("parse headers");
     // 6.recv body
     http_response response{
-      .header = http_header{m_parser->headers | std::views::take(m_parser->headers_cnt)},
-      .body_length = m_parser->body_len,
-      .status_code = m_parser->status,
+        .header = http_header{m_parser->headers |
+                              std::views::take(m_parser->headers_cnt)},
+        .body_length = m_parser->body_len,
+        .status_code = m_parser->status,
     };
 
     if (m_parser->body_len == 0)
       co_return response;
     response.rsp = co_await read_body(m_parser->body_len);
-    
+
     co_return std::move(response);
   }
 
@@ -167,8 +168,7 @@ private:
         need_read -= n;
         m_read_streambuf.commit(n);
       }
-    } catch (const std::exception & e) {
-      
+    } catch (const std::exception &e) {
     }
     rsp.append(m_read_streambuf.data());
     m_read_streambuf.consume(rsp.size());

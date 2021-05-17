@@ -3,50 +3,53 @@
 
 #include "picohttpparser.h"
 #include <algorithm>
-#include <utility>
 #include <array>
 #include <cctype>
 #include <ranges>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace coio {
 
-namespace details{
- 
+namespace details {
+
 static bool is_lower_equal(std::string_view a, std::string_view b) {
   constexpr auto tolower = [](char c) { return std::tolower(c); };
   return std::ranges::equal(a | std::views::transform(tolower),
                             b | std::views::transform(tolower));
-} 
-
 }
 
-class http_header{
-  std::vector<std::pair<std::string , std::string>> m_headers;
+} // namespace details
+
+class http_header {
+  std::vector<std::pair<std::string, std::string>> m_headers;
+
 public:
   explicit http_header() = default;
 
-  template<std::ranges::sized_range R>
-  requires std::same_as<phr_header , std::ranges::range_value_t<R>>
-  explicit http_header(R && r) {
+  template <std::ranges::sized_range R>
+    requires std::same_as<phr_header, std::ranges::range_value_t<R>>
+  explicit http_header(R &&r) {
     m_headers.reserve(r.size());
-    for(auto & h : r){
-      m_headers.emplace_back(std::string{h.name , h.name_len} , std::string{h.value , h.value_len});
+    for (auto &h : r) {
+      m_headers.emplace_back(std::string{h.name, h.name_len},
+                             std::string{h.value, h.value_len});
     }
   }
 
   // return nullopt if not contains this header
   // "" header value is allow
-  std::optional<std::string_view> get_header_value(std::string_view key){
-    for(auto & [k , v] : m_headers){
-      if(details::is_lower_equal(k , key)) return v;
+  std::optional<std::string_view> get_header_value(std::string_view key) {
+    for (auto &[k, v] : m_headers) {
+      if (details::is_lower_equal(k, key))
+        return v;
     }
     return {};
   }
 
-  void add_headers(std::string k , std::string v){
-    m_headers.emplace_back(std::move(k) , std::move(v));
+  void add_headers(std::string k, std::string v) {
+    m_headers.emplace_back(std::move(k), std::move(v));
   }
 };
 
