@@ -118,32 +118,28 @@ TEST(test_http, test_client) {
   auto ctx = coio::io_context{};
   auto _ = ctx.bind_this_thread();
 
-  [[maybe_unused]]
-  auto get_purecpp = [&]()->coio::future<void> {
-          auto resp_res = co_await client.get("http://purecpp.org/");
-      EXPECT_FALSE(resp_res.is_error());
+  [[maybe_unused]] auto get_purecpp = [&]() -> coio::future<void> {
+    auto resp_res = co_await client.get("http://purecpp.org/");
+    EXPECT_FALSE(resp_res.is_error());
 
-      if (resp_res.is_error()) {
-        std::cout << "get http://purecpp.org error:" << resp_res.get_error()
-                  << std::endl;
-        ctx.request_stop();
-        co_return;
-      }
+    if (resp_res.is_error()) {
+      std::cout << "get http://purecpp.org error:" << resp_res.get_error()
+                << std::endl;
+      ctx.request_stop();
+      co_return;
+    }
 
-      resp_res.map([](coio::http_response rsp) {
-        EXPECT_EQ(rsp.status_code, 200);
-        EXPECT_EQ(rsp.body_length, rsp.rsp.size());
-        // std::cout << "rsp = " << rsp.rsp << std::endl;
-      });
+    resp_res.map([](coio::http_response rsp) {
+      EXPECT_EQ(rsp.status_code, 200);
+      EXPECT_EQ(rsp.body_length, rsp.rsp.size());
+      // std::cout << "rsp = " << rsp.rsp << std::endl;
+    });
   };
 
-  [[maybe_unused]]
-  auto get_govcn = [&]() -> coio::future<void> {
+  [[maybe_unused]] auto get_govcn = [&]() -> coio::future<void> {
     auto result = co_await client.get("http://www.gov.cn/");
     EXPECT_FALSE(result.is_error());
-    result.map([](auto rsp){
-      EXPECT_EQ(rsp.status_code , 200);
-    });
+    result.map([](auto rsp) { EXPECT_EQ(rsp.status_code, 200); });
   };
 
   auto get = [&]() -> coio::future<void> {

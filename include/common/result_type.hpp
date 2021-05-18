@@ -80,7 +80,7 @@ public:
   template <std::invocable<Value &> F,
             class R = std::invoke_result_t<F, Value &>>
     requires(!std::same_as<R, void>)
-  constexpr auto map(F &&f) &-> result<R, Err> {
+  constexpr auto map(F &&f) & -> result<R, Err> {
     if (is_error())
       return error<Err>(get_error());
     else
@@ -97,18 +97,20 @@ public:
           std::invoke(std::forward<F>(f), std::move(value())));
   }
 
-  template <std::invocable<Value &> F> constexpr auto map(F &&f)& -> result<void_t, Err> {
+  template <std::invocable<Value &> F>
+  constexpr auto map(F &&f) & -> result<void_t, Err> {
     if (is_error())
       return error<Err>(get_error());
     std::invoke(std::forward<F>(f), value());
-      return result<void_t, Err>{void_t{}};
+    return result<void_t, Err>{void_t{}};
   }
 
-  template <std::invocable<Value> F> constexpr auto map(F &&f) && -> result<void_t, Err> {
+  template <std::invocable<Value> F>
+  constexpr auto map(F &&f) && -> result<void_t, Err> {
     if (is_error())
       return error<Err>(std::move(get_error()));
     std::invoke(std::forward<F>(f), std::move(value()));
-      return result<void_t, Err>{void_t{}};
+    return result<void_t, Err>{void_t{}};
   }
 
   constexpr Err &get_error() noexcept { return *error_ptr(); }
