@@ -1,9 +1,19 @@
 ### Coio
 * header-only
 * implement io_context with liburing
-* use c++20 coroutines
-* file IO , socket , http-client (still simple)
+* implement c++20 coroutines : future / generator
+* file , socket , http-client (still simple)
 * need gcc version > 10
+
+### Uring Features
+* sq poll mode : use less system call (io_uring_enter) , need root permission (use kernel polling thread)
+* io poll mode : use busy loop for IO completion query , instead of kernel irq ? (seems like it cannot be mixed used with no-poll IO);
+* fast poll feature: eliminates the need to use poll_add / read-write in userspace 
+
+### External dependencies
+* liburing
+* c-ares (use for http / socket resolver)
+* gtest (only for build tests)
 
 ### Todo
 * docs & comments
@@ -11,24 +21,9 @@
 * http-client (HTTP/1.1 keep-alive , chunk) 
 * rewrite headers as modules
 
-### URING_FEATURES
-* sq poll mode : use less system call (io_uring_enter) , need root permission (use kernel polling thread)
-* io poll mode : use busy loop for IO completion query , instead of kernel irq ? (seems like it cannot be mixed used with no-poll IO);
-* fast poll feature: eliminates the need to use poll_add / read-write in userspace 
-
-### Problems
-* [iouring] sq_thread sometimes will not awake 
-* [gcc] unexpected move or copy when co_await
-
-### Dependency
-* liburing
-* c-ares (use for http / socket resolver)
-* gtest (only for build tests)
-
 ### Example
 
-'''
-
+```
 constexpr uint64_t KB = 1024;
 constexpr uint64_t MB = 1024 * 1024;
 
@@ -60,24 +55,24 @@ future<uint64_t> client(io_context &ctx, uint times) {
   co_return bytes_read;
 }
 
-'''
+```
 
 ### Pingpong Benchmark
 
-I rebuilt '''libhv/echo-servers''' ( see '''coio/bench/libhv''' ).
+I rebuilt `libhv/echo-servers` ( see `coio/bench/libhv` ).
 
-My environment :
+*My environment* :
 * Intel(R) Core(TM) i5-8500 CPU @ 3.00GHz (6 CPUs), ~3.0GHz
 * DDR4 RAM 8GB*2 , 2400MHz Dual-channel
 * WSL2 : Ubuntu-20.04 (should enable io_uring kernal config)
 * use kernel rebuilt by [nathanchance](https://github.com/nathanchance/WSL2-Linux-Kernel)
 
-Comparation
+*Comparison*:
 * port 2001 : libhv 
 * port 2003 : asio coroutine 
 * port 2004 : a simple io_uring echo server written in C
 
-'''
+```
 libhv running on port 2001
 coio running on port 2002
 asio(coroutine) running on port 2003
@@ -111,7 +106,11 @@ all connected
 all disconnected
 total readcount=2440472 readbytes=2499043328
 throughput = 238 MB/s
-'''
+```
+
+### Problems
+* [iouring] sq_thread sometimes will not awake 
+* [gcc] unexpected move or copy when co_await
 
 ### Reference 
 * about stackless coroutine - [duff's device](https://mthli.xyz/coroutines-in-c/)
