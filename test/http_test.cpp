@@ -118,9 +118,9 @@ TEST(test_http, test_client) {
   auto ctx = coio::io_context{};
   auto _ = ctx.bind_this_thread();
 
-  auto get = [&]() -> coio::future<void> {
-    try {
-      auto resp_res = co_await client.get("http://purecpp.org/");
+  [[maybe_unused]]
+  auto get_purecpp = [&]()->coio::future<void> {
+          auto resp_res = co_await client.get("http://purecpp.org/");
       EXPECT_FALSE(resp_res.is_error());
 
       if (resp_res.is_error()) {
@@ -135,6 +135,21 @@ TEST(test_http, test_client) {
         EXPECT_EQ(rsp.body_length, rsp.rsp.size());
         // std::cout << "rsp = " << rsp.rsp << std::endl;
       });
+  };
+
+  [[maybe_unused]]
+  auto get_govcn = [&]() -> coio::future<void> {
+    auto result = co_await client.get("http://www.gov.cn/");
+    EXPECT_FALSE(result.is_error());
+    result.map([](auto rsp){
+      EXPECT_EQ(rsp.status_code , 200);
+    });
+  };
+
+  auto get = [&]() -> coio::future<void> {
+    try {
+      // co_await get_purecpp();
+      co_await get_govcn();
 
     } catch (const std::exception &e) {
       ptr = std::current_exception();
