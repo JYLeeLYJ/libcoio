@@ -5,7 +5,7 @@
 * file IO , socket , http-client (still simple)
 * need gcc version > 10
 
-### TODO
+### Todo
 * docs & comments
 * implement io_cancel   
 * http-client (HTTP/1.1 keep-alive , chunk) 
@@ -20,12 +20,12 @@
 * [iouring] sq_thread sometimes will not awake 
 * [gcc] unexpected move or copy when co_await
 
-### dependency
+### Dependency
 * liburing
 * c-ares (use for http / socket resolver)
 * gtest (only for build tests)
 
-### example
+### Example
 
 '''
 
@@ -62,7 +62,7 @@ future<uint64_t> client(io_context &ctx, uint times) {
 
 '''
 
-### pingpong benchmark
+### Pingpong Benchmark
 
 I rebuilt '''libhv/echo-servers''' ( see '''coio/bench/libhv''' ).
 
@@ -113,7 +113,7 @@ total readcount=2440472 readbytes=2499043328
 throughput = 238 MB/s
 '''
 
-### reference 
+### Reference 
 * about stackless coroutine - [duff's device](https://mthli.xyz/coroutines-in-c/)
 * [cppcoro](https://github.com/lewissbaker/cppcoro)
 * https://kernel.dk/io_uring.pdf
