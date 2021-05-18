@@ -6,9 +6,10 @@
 * need gcc version > 10
 
 ### TODO
-* need io_cancel   
+* docs & comments
+* implement io_cancel   
 * http-client (HTTP/1.1 keep-alive , chunk) 
-* use modules rewrite headers  
+* rewrite headers as modules
 
 ### URING_FEATURES
 * sq poll mode : use less system call (io_uring_enter) , need root permission (use kernel polling thread)
@@ -21,7 +22,7 @@
 
 ### dependency
 * liburing
-* c-ares
+* c-ares (use for http / socket resolver)
 * gtest (only for build tests)
 
 ### example
